@@ -75,3 +75,4 @@ model Verification {
 
   @@map("verification")
 }
+
