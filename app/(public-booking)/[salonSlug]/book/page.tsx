@@ -25,7 +25,7 @@ export default async function BookPage({ params }: PageProps) {
           <div key={cat.id} className="space-y-3">
             <h2 className="text-xl font-medium">{cat.name}</h2>
             <ul className="grid gap-4 sm:grid-cols-2">
-              {cat.Service.map((s) => (
+              {cat.services.map((s) => (
                 <li key={s.id} className="rounded-2xl border p-4 shadow-sm">
                   <div className="flex items-start justify-between">
                     <div>

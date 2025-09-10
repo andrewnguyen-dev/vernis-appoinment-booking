@@ -16,7 +16,7 @@ export async function getCatalogForSalon(salonId: string) {
     select: {
       id: true,
       name: true,
-      Service: {
+      services: {
         where: { active: true },
         orderBy: [{ name: "asc" }],
         select: {

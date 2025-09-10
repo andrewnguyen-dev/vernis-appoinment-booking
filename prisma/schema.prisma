@@ -23,11 +23,11 @@ model User {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   twoFactorEnabled Boolean       @default(false)
-  Session          Session[]
-  Account          Account[]
-  Membership       Membership[]
-  Client           Client[]
-  Appointment      Appointment[]
+  sessions         Session[]
+  accounts         Account[]
+  memberships      Membership[]
+  clients          Client[]
+  appointments     Appointment[]
 
   @@unique([email])
   @@map("user")
@@ -117,13 +117,13 @@ model Salon {
   // Optional for future scaling, control concurrent bookings in app logic
   capacity Int? // e.g., number of chairs/rooms
 
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  Membership      Membership[]
-  ServiceCategory ServiceCategory[]
-  Service         Service[]
-  Client          Client[]
-  Appointment     Appointment[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  memberships       Membership[]
+  serviceCategories ServiceCategory[]
+  services          Service[]
+  clients           Client[]
+  appointments      Appointment[]
 
   @@map("salon")
 }
@@ -142,7 +142,6 @@ model Membership {
 
   @@unique([userId, salonId])
   @@index([salonId, role])
-
   @@map("membership")
 }
 
@@ -157,11 +156,10 @@ model ServiceCategory {
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  Service   Service[]
+  services  Service[]
 
   @@unique([salonId, name])
   @@index([salonId])
-
   @@map("service_category")
 }
 
@@ -177,13 +175,12 @@ model Service {
   salon    Salon            @relation(fields: [salonId], references: [id], onDelete: Cascade)
   category ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  AppointmentItem AppointmentItem[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  appointmentItems AppointmentItem[]
 
   @@unique([salonId, name])
   @@index([salonId])
-
   @@map("service")
 }
 
@@ -201,13 +198,12 @@ model Client {
   salon Salon @relation(fields: [salonId], references: [id], onDelete: Cascade)
   user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  Appointment Appointment[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[]
 
   @@unique([salonId, email]) // allows multiple nulls; enforces uniqueness when present
   @@index([salonId])
-
   @@map("client")
 }
 
@@ -236,7 +232,6 @@ model Appointment {
   @@index([salonId, startsAt])
   @@index([clientId, startsAt])
   @@index([status])
-
   @@map("appointment")
 }
 
@@ -257,7 +252,6 @@ model AppointmentItem {
   createdAt DateTime @default(now())
 
   @@index([appointmentId])
-
   @@map("appointment_item")
 }
 
@@ -279,6 +273,5 @@ model Payment {
 
   @@index([appointmentId])
   @@index([status])
-
   @@map("payment")
 }
