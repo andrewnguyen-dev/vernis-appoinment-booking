@@ -15,16 +15,19 @@ datasource db {
 }
 
 model User {
-  id               String    @id @default(cuid())
+  id               String        @id @default(cuid())
   name             String
   email            String
-  emailVerified    Boolean   @default(false)
+  emailVerified    Boolean       @default(false)
   image            String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  twoFactorEnabled Boolean   @default(false)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  twoFactorEnabled Boolean       @default(false)
   Session          Session[]
   Account          Account[]
+  Membership       Membership[]
+  Client           Client[]
+  Appointment      Appointment[]
 
   @@unique([email])
   @@map("user")
@@ -76,3 +79,190 @@ model Verification {
   @@map("verification")
 }
 
+// ── Enums ─────────────────────────────────────────────────────────────
+enum Role {
+  OWNER
+}
+
+enum AppointmentStatus {
+  BOOKED
+  CANCELED
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  PAID
+  REFUNDED
+  FAILED
+}
+
+enum PaymentProvider {
+  STRIPE
+  CASH
+  EFTPOS
+  OTHER
+}
+
+// ── Tenancy ───────────────────────────────────────────────────────────
+model Salon {
+  id           String  @id @default(cuid())
+  name         String
+  slug         String  @unique
+  timeZone     String
+  customDomain String? @unique
+  logoUrl      String?
+
+  // Optional for future scaling, control concurrent bookings in app logic
+  capacity Int? // e.g., number of chairs/rooms
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  Membership      Membership[]
+  ServiceCategory ServiceCategory[]
+  Service         Service[]
+  Client          Client[]
+  Appointment     Appointment[]
+}
+
+model Membership {
+  id      String @id @default(cuid())
+  userId  String
+  salonId String
+  role    Role
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  salon Salon @relation(fields: [salonId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, salonId])
+  @@index([salonId, role])
+}
+
+// ── Catalog: Categories & Services ────────────────────────────────────
+model ServiceCategory {
+  id      String @id @default(cuid())
+  salonId String
+  name    String
+  order   Int    @default(0)
+
+  salon Salon @relation(fields: [salonId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  Service   Service[]
+
+  @@unique([salonId, name])
+  @@index([salonId])
+}
+
+model Service {
+  id              String  @id @default(cuid())
+  salonId         String
+  categoryId      String?
+  name            String
+  durationMinutes Int
+  priceCents      Int     @default(0)
+  active          Boolean @default(true)
+
+  salon    Salon            @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  category ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  AppointmentItem AppointmentItem[]
+
+  @@unique([salonId, name])
+  @@index([salonId])
+}
+
+// ── Clients ───────────────────────────────────────────────────────────
+model Client {
+  id        String  @id @default(cuid())
+  salonId   String
+  userId    String? // optional linkage if client signs up
+  firstName String
+  lastName  String?
+  email     String?
+  phone     String?
+  notes     String?
+
+  salon Salon @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  Appointment Appointment[]
+
+  @@unique([salonId, email]) // allows multiple nulls; enforces uniqueness when present
+  @@index([salonId])
+}
+
+// ── Appointments (multi-service via AppointmentItem) ──────────────────
+model Appointment {
+  id              String            @id @default(cuid())
+  salonId         String
+  clientId        String
+  startsAt        DateTime
+  endsAt          DateTime
+  status          AppointmentStatus @default(BOOKED)
+  notes           String?
+  createdByUserId String? // staff/owner who created it; null if self-serve
+
+  salon     Salon  @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  client    Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  createdBy User?  @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  items    AppointmentItem[]
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  // For overlap control, handle in app logic or use DB-level exclusion in a custom migration
+
+  @@index([salonId, startsAt])
+  @@index([clientId, startsAt])
+  @@index([status])
+}
+
+model AppointmentItem {
+  id            String @id @default(cuid())
+  appointmentId String
+  serviceId     String
+
+  // Snapshots to protect historical records if catalog changes later
+  serviceName     String
+  priceCents      Int
+  durationMinutes Int
+  sortOrder       Int    @default(0)
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  service     Service     @relation(fields: [serviceId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([appointmentId])
+}
+
+// ── Payments ──────────────────────────────────────────────────────────
+model Payment {
+  id            String          @id @default(cuid())
+  appointmentId String
+  amountCents   Int
+  currency      String          @default("AUD")
+  provider      PaymentProvider
+  providerRef   String? // e.g. Stripe PaymentIntent ID
+  status        PaymentStatus   @default(PENDING)
+  capturedAt    DateTime?
+  refundedAt    DateTime?
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([appointmentId])
+  @@index([status])
+}
