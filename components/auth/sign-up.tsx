@@ -45,7 +45,9 @@ const SignUp = () => {
           },
           onSuccess: () => {
             setSuccess("User has been created");
-            router.replace("/");
+            setTimeout(() => {
+              router.replace("/sign-in");
+            }, 2000);
           },
           onError: (ctx) => {
             setError(ctx.error.message);
@@ -62,7 +64,7 @@ const SignUp = () => {
     <CardWrapper
       cardTitle="SignUp"
       cardDescription="Create an new account"
-      cardFooterLink="/login"
+      cardFooterLink="/sign-in"
       cardFooterDescription="Already have an account?"
       cardFooterLinkTitle="Login"
     >
