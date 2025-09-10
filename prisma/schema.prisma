@@ -124,6 +124,8 @@ model Salon {
   Service         Service[]
   Client          Client[]
   Appointment     Appointment[]
+
+  @@map("salon")
 }
 
 model Membership {
@@ -140,6 +142,8 @@ model Membership {
 
   @@unique([userId, salonId])
   @@index([salonId, role])
+
+  @@map("membership")
 }
 
 // ── Catalog: Categories & Services ────────────────────────────────────
@@ -157,6 +161,8 @@ model ServiceCategory {
 
   @@unique([salonId, name])
   @@index([salonId])
+
+  @@map("service_category")
 }
 
 model Service {
@@ -177,6 +183,8 @@ model Service {
 
   @@unique([salonId, name])
   @@index([salonId])
+
+  @@map("service")
 }
 
 // ── Clients ───────────────────────────────────────────────────────────
@@ -199,6 +207,8 @@ model Client {
 
   @@unique([salonId, email]) // allows multiple nulls; enforces uniqueness when present
   @@index([salonId])
+
+  @@map("client")
 }
 
 // ── Appointments (multi-service via AppointmentItem) ──────────────────
@@ -226,6 +236,8 @@ model Appointment {
   @@index([salonId, startsAt])
   @@index([clientId, startsAt])
   @@index([status])
+
+  @@map("appointment")
 }
 
 model AppointmentItem {
@@ -245,6 +257,8 @@ model AppointmentItem {
   createdAt DateTime @default(now())
 
   @@index([appointmentId])
+
+  @@map("appointment_item")
 }
 
 // ── Payments ──────────────────────────────────────────────────────────
@@ -265,4 +279,6 @@ model Payment {
 
   @@index([appointmentId])
   @@index([status])
+
+  @@map("payment")
 }
