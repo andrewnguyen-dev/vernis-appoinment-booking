@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
 import { getSalonBySlug, getCatalogForSalon } from "@/lib/tenancy";
 
-type PageProps = { params: { salonSlug: string } };
+type PageProps = { params: Promise<{ salonSlug: string }> };
 
 export default async function BookPage({ params }: PageProps) {
-  const salon = await getSalonBySlug(params.salonSlug);
+  const { salonSlug } = await params;
+  const salon = await getSalonBySlug(salonSlug);
   if (!salon) return notFound();
 
   const categories = await getCatalogForSalon(salon.id);
@@ -44,7 +45,7 @@ export default async function BookPage({ params }: PageProps) {
                     <button
                       type="button"
                       className="rounded-xl border px-3 py-2 text-sm hover:bg-muted"
-                      onClick={() => alert("Add to cart coming soon")}
+                      // onClick={() => console.log("Add to cart", s.id)}
                     >
                       Add
                     </button>
