@@ -116,3 +116,46 @@ export function isValidTimezone(timezone: string): boolean {
     return false;
   }
 }
+
+// Convert a date and time string to a proper Date object in the specified timezone
+export function createDateInTimezone(dateStr: string, timeStr: string, timezone: string): Date {
+  // Combine date and time strings
+  const dateTimeStr = `${dateStr}T${timeStr}`;
+  
+  // Create a temporary date to extract the components
+  const tempDate = new Date(dateTimeStr);
+  
+  // Get the year, month, day, hour, minute from the local interpretation
+  const year = tempDate.getFullYear();
+  const month = tempDate.getMonth();
+  const day = tempDate.getDate();
+  const hour = tempDate.getHours();
+  const minute = tempDate.getMinutes();
+  
+  // Create a date in the target timezone by using the local date components
+  // but adjusting for the timezone difference
+  const localDate = new Date(year, month, day, hour, minute);
+  
+  // Get what this date would be in the target timezone
+  const targetTimezoneDate = new Date(localDate.toLocaleString("en-CA", { timeZone: timezone }));
+  const originalTimezoneDate = new Date(localDate.toLocaleString("en-CA"));
+  
+  // Calculate the offset and adjust
+  const offset = originalTimezoneDate.getTime() - targetTimezoneDate.getTime();
+  
+  return new Date(localDate.getTime() + offset);
+}
+
+// Format a date to display in a specific timezone
+export function formatDateInTimezone(date: Date, timezone: string, options?: Intl.DateTimeFormatOptions): string {
+  const defaultOptions: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: timezone,
+  };
+  
+  return new Intl.DateTimeFormat('en-US', { ...defaultOptions, ...options }).format(date);
+}

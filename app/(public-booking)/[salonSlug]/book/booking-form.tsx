@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AvailabilityCalendar } from "@/components/availability-calendar";
 import { formatTimezone, getCurrentTimeInTimezone } from "@/lib/timezone";
+import { createAppointment, type BookingFormData } from "@/app/actions/appointment";
+import toast from "react-hot-toast";
 
 type Service = {
   id: string;
@@ -42,6 +44,7 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [customerDetails, setCustomerDetails] = useState({
     firstName: "",
     lastName: "",
@@ -87,18 +90,83 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
     return new Intl.NumberFormat("en-AU", { style: "currency", currency }).format(cents / 100);
   };
 
-  const handleSubmit = () => {
-    // TODO: Implement booking submission
-    console.log({
-      salonId: salon.id,
-      services: Array.from(selectedServices),
-      date: selectedDate,
-      time: selectedTime,
-      customer: customerDetails,
-      totalDuration,
-      totalPrice,
-    });
-    alert("Booking submitted! (This is a demo)");
+  const handleSubmit = async () => {
+    if (!selectedDate || !selectedTime) {
+      toast.error("Please select a date and time");
+      return;
+    }
+
+    if (!customerDetails.firstName || !customerDetails.email) {
+      toast.error("Please fill in required fields");
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      // Format date as YYYY-MM-DD in the salon's timezone
+      const dateStr = selectedDate.toLocaleDateString('en-CA'); // en-CA gives YYYY-MM-DD format
+      
+      const bookingData: BookingFormData = {
+        salonSlug: salon.slug,
+        serviceIds: Array.from(selectedServices),
+        date: dateStr,
+        time: selectedTime,
+        customer: {
+          firstName: customerDetails.firstName,
+          lastName: customerDetails.lastName || undefined,
+          email: customerDetails.email,
+          phone: customerDetails.phone || undefined,
+          notes: customerDetails.notes || undefined,
+        },
+        totalDuration,
+        totalPrice,
+      };
+
+      // Debug logging
+      console.log('Booking data being sent:', {
+        ...bookingData,
+        salonTimezone: salon.timeZone,
+        selectedDateObject: selectedDate,
+        selectedDateLocal: selectedDate.toLocaleDateString(),
+      });
+
+      const result = await createAppointment(bookingData);
+
+      if (result.success) {
+        // toast.success("Appointment booked successfully!");
+        
+        // Reset form to initial state
+        setCurrentStep("services");
+        setSelectedServices(new Set());
+        setSelectedDate(undefined);
+        setSelectedTime("");
+        setCustomerDetails({
+          firstName: "",
+          lastName: "",
+          email: "",
+          phone: "",
+          notes: "",
+        });
+        
+        // Optionally show success details
+        if (result.data) {
+          setTimeout(() => {
+            toast.success(
+              `Appointment confirmed for ${result.data.client.firstName} on ${new Date(result.data.startsAt).toLocaleDateString()}`,
+              { duration: 6000 }
+            );
+          }, 1000);
+        }
+      } else {
+        toast.error(result.error || "Failed to book appointment");
+      }
+    } catch (error) {
+      console.error("Booking error:", error);
+      toast.error("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -340,15 +408,16 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
               <Button 
                 variant="outline" 
                 onClick={() => setCurrentStep("datetime")}
+                disabled={isSubmitting}
               >
                 Back
               </Button>
               <Button 
                 onClick={handleSubmit} 
-                disabled={!canSubmit}
+                disabled={!canSubmit || isSubmitting}
                 className="min-w-32"
               >
-                Book Appointment
+                {isSubmitting ? "Booking..." : "Book Appointment"}
               </Button>
             </div>
           </div>
