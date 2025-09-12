@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ type BookingFormProps = {
 type BookingStep = "services" | "datetime" | "details";
 
 export function BookingForm({ salon, categories }: BookingFormProps) {
+  const router = useRouter();
   const [currentStep, setCurrentStep] = useState<BookingStep>("services");
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -142,32 +144,18 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
       const result = await createAppointment(bookingData);
 
       if (result.success) {
-        // toast.success("Appointment booked successfully!");
-        
-        // Reset form to initial state
-        setCurrentStep("services");
-        setSelectedServices(new Set());
-        setSelectedDate(undefined);
-        setSelectedTime("");
-        setCustomerDetails({
-          firstName: "",
-          lastName: "",
-          email: "",
-          phone: "",
-          notes: "",
+        // Redirect to confirmation page with appointment details
+        const params = new URLSearchParams({
+          appointmentId: result.data?.appointmentId || '',
+          clientName: `${customerDetails.firstName} ${customerDetails.lastName || ''}`.trim(),
+          date: dateStr,
+          time: selectedTime,
+          services: encodeURIComponent(selectedServiceData.map(s => s.name).join(", ")),
+          duration: totalDuration.toString(),
+          total: totalPrice.toString(),
         });
         
-        // Optionally show success details
-        if (result.data) {
-          setTimeout(() => {
-            const appointmentDate = new Date(result.data.startsAt);
-            const formattedDate = formatInTimeZone(appointmentDate, salon.timeZone, "EEEE, MMMM d, yyyy 'at' h:mm a");
-            toast.success(
-              `Appointment confirmed for ${result.data.client.firstName} on ${formattedDate}`,
-              { duration: 6000 }
-            );
-          }, 1000);
-        }
+        router.push(`/${salon.slug}/book/confirmation?${params.toString()}`);
       } else {
         toast.error(result.error || "Failed to book appointment");
       }

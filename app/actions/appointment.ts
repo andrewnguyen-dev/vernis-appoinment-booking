@@ -76,16 +76,6 @@ export async function createAppointment(data: BookingFormData) {
     const appointmentDate = fromZonedTime(localDateTime, salon.timeZone);
     const appointmentEndTime = new Date(appointmentDate.getTime() + actualTotalDuration * 60000);
 
-    // Add some debugging to verify timezone conversion
-    console.log('Timezone conversion debug:', {
-      inputDate: validatedData.date,
-      inputTime: validatedData.time,
-      salonTimezone: salon.timeZone,
-      localDateTime,
-      appointmentDate: appointmentDate.toISOString(),
-      appointmentDateLocal: appointmentDate.toLocaleString('en-US', { timeZone: salon.timeZone }),
-    });
-
     // Check if the time slot is still available
     const conflictingAppointment = await prisma.appointment.findFirst({
       where: {
