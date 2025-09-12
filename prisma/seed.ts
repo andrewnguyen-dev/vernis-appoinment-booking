@@ -329,9 +329,20 @@ async function main() {
     capacity: 3,
   });
 
+  // Third salon in Vietnam (example for international expansion)
+  const s3 = await createSalonBundle({
+    ownerId: owner.id,
+    name: 'Saigon Style Studio',
+    slug: 'saigon-style',
+    timeZone: 'Asia/Ho_Chi_Minh',
+    customDomain: null,
+    logoUrl: null,
+    capacity: 4,
+  });
+
   console.log('✅ Seed complete:', {
     owner: { id: owner.id, email: owner.email },
-    salons: [s1.salon.slug, s2.salon.slug],
+    salons: [s1.salon.slug, s2.salon.slug, s3.salon.slug],
   });
 }
 

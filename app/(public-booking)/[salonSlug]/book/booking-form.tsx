@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AvailabilityCalendar } from "@/components/availability-calendar";
+import { formatTimezone, getCurrentTimeInTimezone } from "@/lib/timezone";
 
 type Service = {
   id: string;
@@ -35,19 +37,11 @@ type BookingFormProps = {
 
 type BookingStep = "services" | "datetime" | "details";
 
-type TimeSlot = {
-  time: string;
-  available: boolean;
-  reason?: string;
-};
-
 export function BookingForm({ salon, categories }: BookingFormProps) {
   const [currentStep, setCurrentStep] = useState<BookingStep>("services");
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
-  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>("");
-  const [availableTimeSlots, setAvailableTimeSlots] = useState<TimeSlot[]>([]);
-  const [loadingSlots, setLoadingSlots] = useState(false);
   const [customerDetails, setCustomerDetails] = useState({
     firstName: "",
     lastName: "",
@@ -84,36 +78,10 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
   const canProceedToDetails = canProceedToDateTime && selectedDate && selectedTime;
   const canSubmit = canProceedToDetails && customerDetails.firstName && customerDetails.email;
 
-  // Fetch available time slots when date changes
-  const fetchAvailableTimeSlots = useCallback(async () => {
-    setLoadingSlots(true);
-    try {
-      const response = await fetch(
-        `/api/salons/${salon.slug}/availability?date=${selectedDate}&duration=${totalDuration}`
-      );
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch availability');
-      }
-      
-      const data = await response.json();
-      setAvailableTimeSlots(data.availableSlots || []);
-    } catch (error) {
-      console.error('Error fetching availability:', error);
-      setAvailableTimeSlots([]);
-    } finally {
-      setLoadingSlots(false);
-    }
-  }, [salon.slug, selectedDate, totalDuration]);
-
-  useEffect(() => {
-    if (selectedDate && totalDuration > 0) {
-      fetchAvailableTimeSlots();
-    } else {
-      setAvailableTimeSlots([]);
-      setSelectedTime("");
-    }
-  }, [selectedDate, totalDuration, fetchAvailableTimeSlots]);
+  const handleDateTimeSelect = (date: Date | undefined, time: string | null) => {
+    setSelectedDate(date);
+    setSelectedTime(time || "");
+  };
 
   const formatMoney = (cents: number, currency = "AUD") => {
     return new Intl.NumberFormat("en-AU", { style: "currency", currency }).format(cents / 100);
@@ -233,97 +201,53 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
 
       {/* Step 2: Pick Date and Time */}
       {currentStep === "datetime" && (
-        <Card className="p-6">
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold mb-2">Select Date & Time</h2>
-              <p className="text-sm text-muted-foreground">
-                Your appointment will take approximately {totalDuration} minutes
-              </p>
-            </div>
+        <div className="space-y-6">
+          <div className="text-center">
+            <h2 className="text-xl font-semibold mb-2">Select Date & Time</h2>
+            <p className="text-sm text-muted-foreground">
+              Your appointment will take approximately {totalDuration} minutes
+            </p>
+          </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
-              <div>
-                <Label htmlFor="date" className="text-sm font-medium">Date</Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="mt-1"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="time" className="text-sm font-medium">Time</Label>
-                {loadingSlots ? (
-                  <div className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm items-center">
-                    Loading available times...
-                  </div>
-                ) : (
-                  <select
-                    id="time"
-                    value={selectedTime}
-                    onChange={(e) => setSelectedTime(e.target.value)}
-                    className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={!selectedDate || availableTimeSlots.length === 0}
-                  >
-                    <option value="">
-                      {availableTimeSlots.length === 0 && selectedDate
-                        ? "No available times"
-                        : "Select time"
-                      }
-                    </option>
-                    {availableTimeSlots.map((slot) => (
-                      <option 
-                        key={slot.time} 
-                        value={slot.time}
-                        disabled={!slot.available}
-                        title={slot.reason}
-                      >
-                        {slot.time} {!slot.available ? '(Unavailable)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {selectedDate && availableTimeSlots.length === 0 && !loadingSlots && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    No available times for this date. Please select a different date.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {selectedDate && selectedTime && (
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Appointment Summary</h4>
-                <div className="space-y-1 text-sm">
-                  <div>Date: {new Date(selectedDate).toLocaleDateString()}</div>
-                  <div>Time: {selectedTime}</div>
-                  <div>Duration: {totalDuration} minutes</div>
-                  <div>Total: {formatMoney(totalPrice)}</div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-between">
-              <Button 
-                variant="outline" 
-                onClick={() => setCurrentStep("services")}
-              >
-                Back
-              </Button>
-              <Button 
-                onClick={() => setCurrentStep("details")} 
-                disabled={!canProceedToDetails}
-                className="min-w-32"
-              >
-                Next
-              </Button>
+          {/* Timezone Indicator */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+            <div className="flex items-center justify-center space-x-2 text-sm text-blue-700">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+              </svg>
+              <span className="font-medium">
+                All times shown in {formatTimezone(salon.timeZone)}
+              </span>
+              <span className="text-blue-600">
+                • Current time: {getCurrentTimeInTimezone(salon.timeZone)}
+              </span>
             </div>
           </div>
-        </Card>
+
+          <AvailabilityCalendar
+            salon={salon}
+            totalDuration={totalDuration}
+            onDateTimeSelect={handleDateTimeSelect}
+            selectedDate={selectedDate}
+            selectedTime={selectedTime}
+          />
+
+          <div className="flex justify-between">
+            <Button 
+              variant="outline" 
+              onClick={() => setCurrentStep("services")}
+            >
+              Back
+            </Button>
+            <Button 
+              onClick={() => setCurrentStep("details")} 
+              disabled={!canProceedToDetails}
+              className="min-w-32"
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* Step 3: Enter Details */}
@@ -401,8 +325,8 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
               <h4 className="font-medium mb-2">Final Summary</h4>
               <div className="space-y-1 text-sm">
                 <div>Services: {selectedServiceData.map(s => s.name).join(", ")}</div>
-                <div>Date: {new Date(selectedDate).toLocaleDateString()}</div>
-                <div>Time: {selectedTime}</div>
+                <div>Date: {selectedDate?.toLocaleDateString()}</div>
+                <div>Time: {selectedTime} ({formatTimezone(salon.timeZone)})</div>
                 <div>Duration: {totalDuration} minutes</div>
                 <div className="font-semibold">Total: {formatMoney(totalPrice)}</div>
               </div>

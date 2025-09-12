@@ -123,11 +123,14 @@ export async function getAvailableTimeSlots({
   durationMinutes,
   salonTimeZone,
 }: AvailabilityOptions): Promise<TimeSlot[]> {
-  // Convert date string to Date object in salon's timezone
-  // For now, we'll assume the date is already in the correct timezone
-  // In a full implementation, you'd use a library like date-fns-tz
-  const targetDate = new Date(date + 'T00:00:00'); // Ensure consistent parsing
-  const dayOfWeek = getDayOfWeekEnum(targetDate.getDay());
+  // Create a date object and get the day of week in the salon's timezone
+  const targetDate = new Date(date + 'T12:00:00'); // Use noon to avoid timezone edge cases
+  
+  // Get the day of week in the salon's timezone
+  // Create a date in the salon's timezone and extract day of week
+  const salonDateString = targetDate.toLocaleDateString('en-CA', { timeZone: salonTimeZone }); // YYYY-MM-DD format
+  const salonDate = new Date(salonDateString + 'T12:00:00');
+  const dayOfWeek = getDayOfWeekEnum(salonDate.getDay());
   
   // Check if salon is closed on this date
   const closureCheck = await isSalonClosed(salonId, targetDate);
