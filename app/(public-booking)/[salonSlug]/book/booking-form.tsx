@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { AvailabilityCalendar } from "@/components/availability-calendar";
 import { formatTimezone, getCurrentTimeInTimezone } from "@/lib/timezone";
 import { createAppointment, type BookingFormData } from "@/app/actions/appointment";
+import { formatInTimeZone } from "date-fns-tz";
 import toast from "react-hot-toast";
 
 type Service = {
@@ -90,6 +91,11 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
     return new Intl.NumberFormat("en-AU", { style: "currency", currency }).format(cents / 100);
   };
 
+  // Helper function to format date for display (always in salon timezone)
+  const formatDateForDisplay = (date: Date) => {
+    return formatInTimeZone(date, salon.timeZone, "EEEE, MMMM d, yyyy");
+  };
+
   const handleSubmit = async () => {
     if (!selectedDate || !selectedTime) {
       toast.error("Please select a date and time");
@@ -105,7 +111,8 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
     
     try {
       // Format date as YYYY-MM-DD in the salon's timezone
-      const dateStr = selectedDate.toLocaleDateString('en-CA'); // en-CA gives YYYY-MM-DD format
+      // Use formatInTimeZone to ensure we get the correct date in the salon's timezone
+      const dateStr = formatInTimeZone(selectedDate, salon.timeZone, "yyyy-MM-dd");
       
       const bookingData: BookingFormData = {
         salonSlug: salon.slug,
@@ -128,6 +135,7 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
         ...bookingData,
         salonTimezone: salon.timeZone,
         selectedDateObject: selectedDate,
+        selectedDateInSalonTZ: formatInTimeZone(selectedDate, salon.timeZone, "yyyy-MM-dd HH:mm:ss xxx"),
         selectedDateLocal: selectedDate.toLocaleDateString(),
       });
 
@@ -152,8 +160,10 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
         // Optionally show success details
         if (result.data) {
           setTimeout(() => {
+            const appointmentDate = new Date(result.data.startsAt);
+            const formattedDate = formatInTimeZone(appointmentDate, salon.timeZone, "EEEE, MMMM d, yyyy 'at' h:mm a");
             toast.success(
-              `Appointment confirmed for ${result.data.client.firstName} on ${new Date(result.data.startsAt).toLocaleDateString()}`,
+              `Appointment confirmed for ${result.data.client.firstName} on ${formattedDate}`,
               { duration: 6000 }
             );
           }, 1000);
@@ -397,7 +407,7 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
               <h4 className="font-medium mb-2">Final Summary</h4>
               <div className="space-y-1 text-sm">
                 <div>Services: {selectedServiceData.map(s => s.name).join(", ")}</div>
-                <div>Date: {selectedDate?.toLocaleDateString()}</div>
+                <div>Date: {selectedDate ? formatDateForDisplay(selectedDate) : ""}</div>
                 <div>Time: {selectedTime} ({formatTimezone(salon.timeZone)})</div>
                 <div>Duration: {totalDuration} minutes</div>
                 <div className="font-semibold">Total: {formatMoney(totalPrice)}</div>
