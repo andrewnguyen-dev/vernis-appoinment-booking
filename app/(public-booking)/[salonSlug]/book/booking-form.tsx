@@ -146,16 +146,20 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
                   <h3 className="text-lg font-medium">{category.name}</h3>
                   <div className="space-y-3">
                     {category.services.map((service) => (
-                      <div key={service.id} className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50">
+                      <div 
+                        key={service.id} 
+                        className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => handleServiceToggle(service.id)}
+                      >
                         <Checkbox
                           id={service.id}
                           checked={selectedServices.has(service.id)}
                           onCheckedChange={() => handleServiceToggle(service.id)}
                         />
                         <div className="flex-1 min-w-0">
-                          <Label htmlFor={service.id} className="text-sm font-medium cursor-pointer">
+                          <div className="text-sm font-medium">
                             {service.name}
-                          </Label>
+                          </div>
                           <div className="flex items-center justify-between mt-1">
                             <span className="text-xs text-muted-foreground">
                               {service.durationMinutes} minutes
