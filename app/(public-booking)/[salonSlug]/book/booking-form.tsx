@@ -148,7 +148,7 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
                     {category.services.map((service) => (
                       <div 
                         key={service.id} 
-                        className="flex items-start space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
+                        className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer transition-colors"
                         onClick={() => handleServiceToggle(service.id)}
                       >
                         <Checkbox
