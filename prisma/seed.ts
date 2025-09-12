@@ -1,6 +1,6 @@
 // 10 Sep 2025 //
 
-import { PrismaClient, AppointmentStatus, PaymentProvider, PaymentStatus, Role } from '@prisma/client';
+import { PrismaClient, AppointmentStatus, PaymentProvider, PaymentStatus, Role, DayOfWeek } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -42,6 +42,28 @@ async function createSalonBundle({
       capacity,
     },
   });
+
+  // Add default business hours
+  const businessHours = [
+    { dayOfWeek: DayOfWeek.MONDAY, openTime: "09:00", closeTime: "17:00", isClosed: false },
+    { dayOfWeek: DayOfWeek.TUESDAY, openTime: "09:00", closeTime: "17:00", isClosed: false },
+    { dayOfWeek: DayOfWeek.WEDNESDAY, openTime: "09:00", closeTime: "17:00", isClosed: false },
+    { dayOfWeek: DayOfWeek.THURSDAY, openTime: "09:00", closeTime: "17:00", isClosed: false },
+    { dayOfWeek: DayOfWeek.FRIDAY, openTime: "09:00", closeTime: "17:00", isClosed: false },
+    { dayOfWeek: DayOfWeek.SATURDAY, openTime: "09:00", closeTime: "15:00", isClosed: false },
+    { dayOfWeek: DayOfWeek.SUNDAY, openTime: "10:00", closeTime: "16:00", isClosed: true },
+  ];
+
+  await prisma.$transaction(
+    businessHours.map(hours =>
+      prisma.businessHours.create({
+        data: {
+          salonId: salon.id,
+          ...hours,
+        },
+      })
+    )
+  );
 
   // OWNER membership
   await prisma.membership.create({
@@ -266,6 +288,8 @@ async function main() {
     prisma.client.deleteMany(),
     prisma.service.deleteMany(),
     prisma.serviceCategory.deleteMany(),
+    prisma.salonClosure.deleteMany(),
+    prisma.businessHours.deleteMany(),
     prisma.membership.deleteMany(),
     prisma.salon.deleteMany(),
     prisma.account.deleteMany(),
