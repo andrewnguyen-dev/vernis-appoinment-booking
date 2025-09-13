@@ -1,10 +1,9 @@
-import SignIn from '@/components/auth/sign-in'
+import OwnerSignIn from "@/components/auth/owner-sign-in";
 import { getOptionalAuth } from "@/lib/auth-utils";
 import { isOwner } from "@/lib/user-utils";
 import { redirect } from "next/navigation";
-import React from 'react'
 
-const SignInPage = async () => {
+export default async function OwnerSignInPage() {
   const session = await getOptionalAuth();
   
   // If user is already logged in, redirect them appropriately
@@ -12,17 +11,13 @@ const SignInPage = async () => {
     // Check if they're an owner
     const userIsOwner = await isOwner(session.user.id);
     if (userIsOwner) {
-      // Owner logged in, redirect to dashboard
+      // Owner is already logged in, redirect to dashboard
       redirect("/dashboard");
     } else {
-      // Regular user logged in, redirect to homepage
+      // Regular user trying to access owner sign-in, redirect to homepage
       redirect("/");
     }
   }
 
-  return (
-    <SignIn />
-  )
+  return <OwnerSignIn />;
 }
-
-export default SignInPage

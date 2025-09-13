@@ -1,18 +1,11 @@
 import SignOut from "@/components/auth/sign-out";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { requireOwnerAuth } from "@/lib/auth-utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, DollarSign, Users, Clock } from "lucide-react";
 
 export default async function DashboardPage() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session) {
-    redirect("/sign-in");
-  }
+  // This will redirect to /owner-sign-in if not authenticated or not an owner
+  const session = await requireOwnerAuth();
 
   return (
     <div className="space-y-6">

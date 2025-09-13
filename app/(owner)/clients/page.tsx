@@ -1,4 +1,9 @@
-export default function ClientsPage() {
+import { requireOwnerAuth } from "@/lib/auth-utils";
+
+export default async function ClientsPage() {
+  // This will redirect to /owner-sign-in if not authenticated or not an owner
+  await requireOwnerAuth();
+
   return (
     <div className="space-y-6">
       <div>
