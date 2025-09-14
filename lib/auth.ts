@@ -24,7 +24,8 @@ export const auth = betterAuth({
 
       // Send email using Resend
       resend.emails.send({
-        from: "onboarding@resend.dev",
+        // from: "onboarding@resend.dev",
+        from: "hello@vernis.app",
         to: user.email,
         // to: 'andrewnguyen.nsw@gmail.com',
         subject: "Reset your password",
