@@ -153,6 +153,7 @@ model Membership {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, salonId])
+  @@unique([userId, role]) // Ensures one user can only have one role of each type (e.g., one OWNER role)
   @@index([salonId, role])
   @@map("membership")
 }

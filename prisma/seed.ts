@@ -298,20 +298,21 @@ async function main() {
     prisma.verification.deleteMany(),
   ]);
 
-  // Owner user
-  const owner = await prisma.user.create({
+  // Create three separate owners, each owning one salon
+  
+  // First owner and salon
+  const owner1 = await prisma.user.create({
     data: {
-      name: 'Owner One',
-      email: 'owner@example.com',
+      name: 'Alice Johnson',
+      email: 'alice.owner@example.com',
       emailVerified: true,
       image: null,
       twoFactorEnabled: false,
     },
   });
 
-  // First salon with custom domain
   const s1 = await createSalonBundle({
-    ownerId: owner.id,
+    ownerId: owner1.id,
     name: 'Luxe Lane Salon',
     slug: 'luxe-lane',
     customDomain: 'luxelane.example.com',
@@ -319,9 +320,19 @@ async function main() {
     capacity: 6,
   });
 
-  // Second salon under same owner
+  // Second owner and salon
+  const owner2 = await prisma.user.create({
+    data: {
+      name: 'Bob Smith',
+      email: 'bob.owner@example.com',
+      emailVerified: true,
+      image: null,
+      twoFactorEnabled: false,
+    },
+  });
+
   const s2 = await createSalonBundle({
-    ownerId: owner.id,
+    ownerId: owner2.id,
     name: 'Harbour Cuts',
     slug: 'harbour-cuts',
     customDomain: null,
@@ -329,9 +340,19 @@ async function main() {
     capacity: 3,
   });
 
-  // Third salon in Vietnam (example for international expansion)
+  // Third owner and salon
+  const owner3 = await prisma.user.create({
+    data: {
+      name: 'Charlie Nguyen',
+      email: 'charlie.owner@example.com',
+      emailVerified: true,
+      image: null,
+      twoFactorEnabled: false,
+    },
+  });
+
   const s3 = await createSalonBundle({
-    ownerId: owner.id,
+    ownerId: owner3.id,
     name: 'Saigon Style Studio',
     slug: 'saigon-style',
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -341,8 +362,11 @@ async function main() {
   });
 
   console.log('✅ Seed complete:', {
-    owner: { id: owner.id, email: owner.email },
-    salons: [s1.salon.slug, s2.salon.slug, s3.salon.slug],
+    owners: [
+      { id: owner1.id, email: owner1.email, salon: s1.salon.slug },
+      { id: owner2.id, email: owner2.email, salon: s2.salon.slug },
+      { id: owner3.id, email: owner3.email, salon: s3.salon.slug },
+    ],
   });
 }
 
