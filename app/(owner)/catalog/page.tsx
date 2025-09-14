@@ -1,4 +1,5 @@
 import { requireOwnerAuth } from "@/lib/auth-utils";
+import { CatalogManager } from "@/components/catalog/catalog-manager";
 
 export default async function CatalogPage() {
   // This will redirect to /owner-sign-in if not authenticated or not an owner
@@ -13,14 +14,7 @@ export default async function CatalogPage() {
         </p>
       </div>
       
-      <div className="rounded-lg border p-8">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold mb-2">Services & Categories</h2>
-          <p className="text-muted-foreground">
-            CRUD functionality for services and categories will be implemented here
-          </p>
-        </div>
-      </div>
+      <CatalogManager />
     </div>
   )
 }
