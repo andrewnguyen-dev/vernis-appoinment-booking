@@ -1,6 +1,6 @@
 // 10 Sep 2025 //
 
-import { PrismaClient, AppointmentStatus, PaymentProvider, PaymentStatus, Role, DayOfWeek } from '@prisma/client';
+import { PrismaClient, AppointmentStatus, PaymentProvider, PaymentStatus, DayOfWeek } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -40,6 +40,7 @@ async function createSalonBundle({
       customDomain: customDomain ?? null,
       logoUrl: logoUrl ?? null,
       capacity,
+      ownerId, // Direct ownership relationship
     },
   });
 
@@ -64,15 +65,6 @@ async function createSalonBundle({
       })
     )
   );
-
-  // OWNER membership
-  await prisma.membership.create({
-    data: {
-      userId: ownerId,
-      salonId: salon.id,
-      role: Role.OWNER,
-    },
-  });
 
   // Categories
   const hair = await prisma.serviceCategory.create({
@@ -290,7 +282,6 @@ async function main() {
     prisma.serviceCategory.deleteMany(),
     prisma.salonClosure.deleteMany(),
     prisma.businessHours.deleteMany(),
-    prisma.membership.deleteMany(),
     prisma.salon.deleteMany(),
     prisma.account.deleteMany(),
     prisma.session.deleteMany(),
@@ -309,8 +300,8 @@ async function main() {
     },
   });
 
-  // First salon with custom domain
-  const s1 = await createSalonBundle({
+  // Create one salon for the owner
+  const salon = await createSalonBundle({
     ownerId: owner.id,
     name: 'Luxe Lane Salon',
     slug: 'luxe-lane',
@@ -319,30 +310,9 @@ async function main() {
     capacity: 6,
   });
 
-  // Second salon under same owner
-  const s2 = await createSalonBundle({
-    ownerId: owner.id,
-    name: 'Harbour Cuts',
-    slug: 'harbour-cuts',
-    customDomain: null,
-    logoUrl: null,
-    capacity: 3,
-  });
-
-  // Third salon in Vietnam (example for international expansion)
-  const s3 = await createSalonBundle({
-    ownerId: owner.id,
-    name: 'Saigon Style Studio',
-    slug: 'saigon-style',
-    timeZone: 'Asia/Ho_Chi_Minh',
-    customDomain: null,
-    logoUrl: null,
-    capacity: 4,
-  });
-
   console.log('✅ Seed complete:', {
     owner: { id: owner.id, email: owner.email },
-    salons: [s1.salon.slug, s2.salon.slug, s3.salon.slug],
+    salon: salon.salon.slug,
   });
 }
 

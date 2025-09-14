@@ -25,7 +25,7 @@ model User {
   twoFactorEnabled Boolean       @default(false)
   sessions         Session[]
   accounts         Account[]
-  memberships      Membership[]
+  salon            Salon?        // One user can own one salon
   clients          Client[]
   appointments     Appointment[]
 
@@ -80,10 +80,6 @@ model Verification {
 }
 
 // ── Enums ─────────────────────────────────────────────────────────────
-enum Role {
-  OWNER
-}
-
 enum AppointmentStatus {
   BOOKED
   CANCELED
@@ -123,13 +119,14 @@ model Salon {
   timeZone     String
   customDomain String? @unique
   logoUrl      String?
+  ownerId      String  @unique // Each salon has one owner
 
   // Optional for future scaling, control concurrent bookings in app logic
   capacity Int? // e.g., number of chairs/rooms
 
+  owner             User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
-  memberships       Membership[]
   serviceCategories ServiceCategory[]
   services          Service[]
   clients           Client[]
@@ -138,23 +135,6 @@ model Salon {
   closures          SalonClosure[]
 
   @@map("salon")
-}
-
-model Membership {
-  id      String @id @default(cuid())
-  userId  String
-  salonId String
-  role    Role
-
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  salon Salon @relation(fields: [salonId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userId, salonId])
-  @@index([salonId, role])
-  @@map("membership")
 }
 
 // ── Catalog: Categories & Services ────────────────────────────────────
