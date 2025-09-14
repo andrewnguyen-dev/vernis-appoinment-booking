@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -109,6 +110,109 @@ export function CatalogTable({ categories, uncategorizedServices, onDataChange }
 
   const allCategories = categories.map(cat => ({ id: cat.id, name: cat.name }));
 
+  // Mobile card component for services
+  const ServiceCard = ({ service }: { service: Service }) => (
+    <Card className="p-4">
+      <div className="flex items-start justify-between">
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2">
+            <h4 className="font-medium">{service.name}</h4>
+            <Badge variant={service.active ? "default" : "secondary"}>
+              {service.active ? "Active" : "Inactive"}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span>{formatDuration(service.durationMinutes)}</span>
+            <span>{formatPrice(service.priceCents)}</span>
+          </div>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm">
+              <HiDotsHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => {
+                setEditingService(service);
+                setShowServiceForm(true);
+              }}
+            >
+              <FiEdit2 className="mr-2 h-4 w-4" />
+              Edit Service
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => handleDeleteService(service.id)}
+              disabled={isDeleting === service.id}
+              className="text-destructive"
+            >
+              <FiTrash2 className="mr-2 h-4 w-4" />
+              Delete Service
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </Card>
+  );
+
+  // Desktop table component for services
+  const ServiceTable = ({ services }: { services: Service[] }) => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Service Name</TableHead>
+          <TableHead>Duration</TableHead>
+          <TableHead>Price</TableHead>
+          <TableHead>Status</TableHead>
+          <TableHead className="w-[50px]"></TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {services.map((service) => (
+          <TableRow key={service.id}>
+            <TableCell className="font-medium">{service.name}</TableCell>
+            <TableCell>{formatDuration(service.durationMinutes)}</TableCell>
+            <TableCell>{formatPrice(service.priceCents)}</TableCell>
+            <TableCell>
+              <Badge variant={service.active ? "default" : "secondary"}>
+                {service.active ? "Active" : "Inactive"}
+              </Badge>
+            </TableCell>
+            <TableCell>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <HiDotsHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setEditingService(service);
+                      setShowServiceForm(true);
+                    }}
+                  >
+                    <FiEdit2 className="mr-2 h-4 w-4" />
+                    Edit Service
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => handleDeleteService(service.id)}
+                    disabled={isDeleting === service.id}
+                    className="text-destructive"
+                  >
+                    <FiTrash2 className="mr-2 h-4 w-4" />
+                    Delete Service
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+
   return (
     <>
       <div className="space-y-6">
@@ -151,59 +255,19 @@ export function CatalogTable({ categories, uncategorizedServices, onDataChange }
             </div>
 
             {category.services.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Service Name</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                {/* Desktop view - Table */}
+                <div className="hidden md:block">
+                  <ServiceTable services={category.services} />
+                </div>
+                
+                {/* Mobile view - Cards */}
+                <div className="md:hidden space-y-3">
                   {category.services.map((service) => (
-                    <TableRow key={service.id}>
-                      <TableCell className="font-medium">{service.name}</TableCell>
-                      <TableCell>{formatDuration(service.durationMinutes)}</TableCell>
-                      <TableCell>{formatPrice(service.priceCents)}</TableCell>
-                      <TableCell>
-                        <Badge variant={service.active ? "default" : "secondary"}>
-                          {service.active ? "Active" : "Inactive"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <HiDotsHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setEditingService(service);
-                                setShowServiceForm(true);
-                              }}
-                            >
-                              <FiEdit2 className="mr-2 h-4 w-4" />
-                              Edit Service
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleDeleteService(service.id)}
-                              disabled={isDeleting === service.id}
-                              className="text-destructive"
-                            >
-                              <FiTrash2 className="mr-2 h-4 w-4" />
-                              Delete Service
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
+                    <ServiceCard key={service.id} service={service} />
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              </>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 No services in this category yet.
@@ -222,59 +286,17 @@ export function CatalogTable({ categories, uncategorizedServices, onDataChange }
               </p>
             </div>
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Service Name</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {uncategorizedServices.map((service) => (
-                  <TableRow key={service.id}>
-                    <TableCell className="font-medium">{service.name}</TableCell>
-                    <TableCell>{formatDuration(service.durationMinutes)}</TableCell>
-                    <TableCell>{formatPrice(service.priceCents)}</TableCell>
-                    <TableCell>
-                      <Badge variant={service.active ? "default" : "secondary"}>
-                        {service.active ? "Active" : "Inactive"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <HiDotsHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setEditingService(service);
-                              setShowServiceForm(true);
-                            }}
-                          >
-                            <FiEdit2 className="mr-2 h-4 w-4" />
-                            Edit Service
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleDeleteService(service.id)}
-                            disabled={isDeleting === service.id}
-                            className="text-destructive"
-                          >
-                            <FiTrash2 className="mr-2 h-4 w-4" />
-                            Delete Service
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            {/* Desktop view - Table */}
+            <div className="hidden md:block">
+              <ServiceTable services={uncategorizedServices} />
+            </div>
+            
+            {/* Mobile view - Cards */}
+            <div className="md:hidden space-y-3">
+              {uncategorizedServices.map((service) => (
+                <ServiceCard key={service.id} service={service} />
+              ))}
+            </div>
           </div>
         )}
 
