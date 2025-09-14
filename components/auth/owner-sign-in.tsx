@@ -14,7 +14,7 @@ import { Button } from "../ui/button";
 import { signIn } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 
-const SignIn = () => {
+const OwnerSignIn = () => {
   const router = useRouter();
   const { error, success, loading, setSuccess, setError, setLoading, resetState } = useAuthState();
 
@@ -41,9 +41,17 @@ const SignIn = () => {
             resetState();
             setLoading(true);
           },
-          onSuccess: () => {
-            setSuccess("LoggedIn successfully");
-            router.replace("/");
+          onSuccess: async () => {
+            // Verify user has salon owner membership
+            const response = await fetch('/api/auth/verify-owner');
+            if (response.ok) {
+              setSuccess("Logged in successfully");
+              router.replace("/dashboard");
+            } else {
+              setError("Access denied. Owner privileges required.");
+              // Sign out the user if they don't have owner access
+              await fetch('/api/auth/signout', { method: 'POST' });
+            }
           },
           onError: (ctx) => {
             setError(ctx.error.message);
@@ -58,11 +66,11 @@ const SignIn = () => {
 
   return (
     <CardWrapper
-      cardTitle="Customer Sign In"
-      cardDescription="Sign in to book appointments and manage your bookings"
-      cardFooterDescription="Don't have an account?"
-      cardFooterLink="/sign-up"
-      cardFooterLinkTitle="Sign up"
+      cardTitle="Salon Owner Sign In"
+      cardDescription="Sign in to your salon management dashboard"
+      cardFooterDescription="Don't have an owner account?"
+      cardFooterLink="/owner-sign-up"
+      cardFooterLinkTitle="Contact us"
     >
       <Form {...form}>
         <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
@@ -73,7 +81,7 @@ const SignIn = () => {
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input disabled={loading} type="email" placeholder="example@gmail.com" {...field} />
+                  <Input disabled={loading} type="email" placeholder="owner@salon.com" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -98,17 +106,17 @@ const SignIn = () => {
           <FormError message={error} />
           <FormSuccess message={success} />
           <Button disabled={loading} type="submit" className="w-full">
-            Login
+            Sign In as Owner
           </Button>
         </form>
       </Form>
       <div className="mt-4 text-center">
-        <a href="/owner-sign-in" className="text-sm text-muted-foreground hover:underline">
-          Are you a salon owner? Sign in here
+        <a href="/sign-in" className="text-sm text-muted-foreground hover:underline">
+          Sign in as a regular customer instead
         </a>
       </div>
     </CardWrapper>
   );
 };
 
-export default SignIn;
+export default OwnerSignIn;
