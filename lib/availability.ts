@@ -242,7 +242,8 @@ export async function isTimeSlotAvailable(
   salonId: string,
   date: string,
   time: string, // "09:00"
-  durationMinutes: number
+  durationMinutes: number,
+  excludeAppointmentIds?: string[] // Optional: exclude specific appointments from check
 ): Promise<{ available: boolean; reason?: string; capacityInfo?: { used: number; total: number } }> {
   // Create a date object for the specific time slot
   const [hours, minutes] = time.split(':').map(Number);
@@ -254,7 +255,32 @@ export async function isTimeSlotAvailable(
   proposedEnd.setMinutes(proposedEnd.getMinutes() + durationMinutes);
   
   // Get existing appointments for this date
-  const existingAppointments = await getExistingAppointments(salonId, targetDate);
+  let existingAppointments = await getExistingAppointments(salonId, targetDate);
+  
+  // Exclude specific appointments if provided (useful for rescheduling)
+  if (excludeAppointmentIds && excludeAppointmentIds.length > 0) {
+    // We need to get appointment IDs to filter them out
+    const startOfDay = new Date(targetDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const appointmentsWithIds = await prisma.appointment.findMany({
+      where: {
+        salonId,
+        status: { in: ["BOOKED", "COMPLETED"] },
+        startsAt: { gte: startOfDay, lte: endOfDay },
+        id: { notIn: excludeAppointmentIds }, // Exclude specified appointments
+      },
+      select: {
+        startsAt: true,
+        endsAt: true,
+      },
+    });
+    
+    existingAppointments = appointmentsWithIds;
+  }
   
   // Get salon capacity
   const capacity = await getSalonCapacity(salonId);

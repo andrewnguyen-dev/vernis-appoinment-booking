@@ -83,6 +83,7 @@ export async function createAppointment(data: BookingFormData) {
       validatedData.date,
       validatedData.time,
       actualTotalDuration
+      // No excluded appointments for new bookings
     );
 
     if (!availabilityCheck.available) {

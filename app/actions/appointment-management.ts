@@ -4,6 +4,7 @@ import { z } from "zod"
 import prisma from "@/db"
 import { requireOwnerAuth } from "@/lib/auth-utils"
 import { getUserSalons } from "@/lib/user-utils"
+import { isTimeSlotAvailable } from "@/lib/availability"
 import { revalidatePath } from "next/cache"
 
 // Validation schemas
@@ -196,25 +197,32 @@ export async function updateAppointmentTime(data: UpdateAppointmentTimeData) {
     const newStartTime = new Date(validatedData.startsAt)
     const newEndTime = new Date(validatedData.endsAt)
 
-    // Check for time slot conflicts (excluding the current appointment)
-    const conflictingAppointment = await prisma.appointment.findFirst({
-      where: {
-        salonId: existingAppointment.salonId,
-        id: { not: validatedData.appointmentId },
-        status: { in: ["BOOKED", "COMPLETED"] },
-        OR: [
-          {
-            startsAt: { lt: newEndTime },
-            endsAt: { gt: newStartTime },
-          },
-        ],
-      },
-    })
+    // Calculate duration for availability check
+    const durationMinutes = Math.round((newEndTime.getTime() - newStartTime.getTime()) / (1000 * 60))
 
-    if (conflictingAppointment) {
+    // Format date and time for availability check
+    const appointmentDate = newStartTime.toISOString().split('T')[0] // YYYY-MM-DD
+    const appointmentTime = newStartTime.toTimeString().slice(0, 5) // HH:MM
+
+    // Check if the new time slot is available considering salon capacity
+    // Exclude the current appointment from the availability check
+    const availabilityCheck = await isTimeSlotAvailable(
+      existingAppointment.salonId,
+      appointmentDate,
+      appointmentTime,
+      durationMinutes,
+      [validatedData.appointmentId] // Exclude current appointment
+    )
+
+    if (!availabilityCheck.available) {
+      const capacityInfo = availabilityCheck.capacityInfo
+      const capacityMessage = capacityInfo 
+        ? ` (${capacityInfo.used}/${capacityInfo.total} slots filled)`
+        : ""
+      
       return {
         success: false,
-        error: "The new time slot conflicts with another appointment"
+        error: `The new time slot is not available${capacityMessage}. Please select a different time.`
       }
     }
 
