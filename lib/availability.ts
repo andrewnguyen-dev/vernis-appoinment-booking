@@ -104,17 +104,55 @@ async function getExistingAppointments(salonId: string, date: Date) {
   });
 }
 
-// Check if a specific time slot conflicts with existing appointments
-function hasTimeConflict(
+// Check if a specific time slot conflicts with existing appointments considering salon capacity
+async function hasTimeConflict(
   proposedStart: Date,
   proposedEnd: Date,
-  existingAppointments: { startsAt: Date; endsAt: Date }[]
-): boolean {
-  return existingAppointments.some(appointment => {
-    // Check for overlap: proposed appointment overlaps if it starts before existing ends
-    // and ends after existing starts
-    return proposedStart < appointment.endsAt && proposedEnd > appointment.startsAt;
+  existingAppointments: { startsAt: Date; endsAt: Date }[],
+  salonId: string
+): Promise<boolean> {
+  // Get salon capacity
+  const capacity = await getSalonCapacity(salonId);
+  
+  // Create a list of all time points where appointments start or end
+  const timePoints: { time: Date; type: 'start' | 'end' }[] = [];
+  
+  // Add existing appointments
+  existingAppointments.forEach(appointment => {
+    timePoints.push({ time: appointment.startsAt, type: 'start' });
+    timePoints.push({ time: appointment.endsAt, type: 'end' });
   });
+  
+  // Add proposed appointment
+  timePoints.push({ time: proposedStart, type: 'start' });
+  timePoints.push({ time: proposedEnd, type: 'end' });
+  
+  // Sort time points chronologically
+  timePoints.sort((a, b) => a.time.getTime() - b.time.getTime());
+  
+  let currentOverlaps = 0;
+  let proposedActive = false;
+  
+  for (const point of timePoints) {
+    if (point.type === 'start') {
+      currentOverlaps++;
+      if (point.time.getTime() === proposedStart.getTime()) {
+        proposedActive = true;
+      }
+    } else {
+      currentOverlaps--;
+      if (point.time.getTime() === proposedEnd.getTime()) {
+        proposedActive = false;
+      }
+    }
+    
+    // Check if we exceed capacity while the proposed appointment is active
+    if (proposedActive && currentOverlaps > capacity) {
+      return true; // Conflict detected
+    }
+  }
+  
+  return false; // No conflict
 }
 
 export async function getAvailableTimeSlots({
@@ -177,12 +215,12 @@ export async function getAvailableTimeSlots({
     }
     
     // Check for conflicts with existing appointments
-    const hasConflict = hasTimeConflict(proposedStart, proposedEnd, existingAppointments);
+    const hasConflict = await hasTimeConflict(proposedStart, proposedEnd, existingAppointments, salonId);
     
     availableSlots.push({
       time: timeSlot,
       available: !hasConflict,
-      reason: hasConflict ? "Time slot already booked" : undefined,
+      reason: hasConflict ? "Time slot not available (capacity exceeded)" : undefined,
     });
   }
   
@@ -197,6 +235,45 @@ export async function getSalonCapacity(salonId: string): Promise<number> {
   });
   
   return salon?.capacity || 1; // Default to 1 if not set
+}
+
+// Check if a specific time slot is available for public booking
+export async function isTimeSlotAvailable(
+  salonId: string,
+  date: string,
+  time: string, // "09:00"
+  durationMinutes: number
+): Promise<{ available: boolean; reason?: string; capacityInfo?: { used: number; total: number } }> {
+  // Create a date object for the specific time slot
+  const [hours, minutes] = time.split(':').map(Number);
+  const targetDate = new Date(date + 'T12:00:00');
+  const proposedStart = new Date(targetDate);
+  proposedStart.setHours(hours, minutes, 0, 0);
+  
+  const proposedEnd = new Date(proposedStart);
+  proposedEnd.setMinutes(proposedEnd.getMinutes() + durationMinutes);
+  
+  // Get existing appointments for this date
+  const existingAppointments = await getExistingAppointments(salonId, targetDate);
+  
+  // Get salon capacity
+  const capacity = await getSalonCapacity(salonId);
+  
+  // Count concurrent appointments at this time
+  const concurrentAppointments = existingAppointments.filter(appointment => {
+    return proposedStart < appointment.endsAt && proposedEnd > appointment.startsAt;
+  });
+  
+  const isAvailable = concurrentAppointments.length < capacity;
+  
+  return {
+    available: isAvailable,
+    reason: isAvailable ? undefined : "No availability at this time",
+    capacityInfo: {
+      used: concurrentAppointments.length,
+      total: capacity
+    }
+  };
 }
 
 // Set default business hours for a salon (utility function)

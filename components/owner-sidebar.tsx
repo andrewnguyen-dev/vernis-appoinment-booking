@@ -32,6 +32,12 @@ const navItems = [
     description: "Overview, upcoming appointments, revenue summary"
   },
   {
+    title: "Appointments",
+    url: "/appointments", 
+    icon: Calendar,
+    description: "View and manage upcoming appointments"
+  },
+  {
     title: "Catalog",
     url: "/catalog", 
     icon: Package,
