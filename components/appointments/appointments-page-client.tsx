@@ -6,7 +6,7 @@ import { Calendar, List } from 'lucide-react'
 import CalendarDayView from './calendar-day-view'
 import AppointmentListView from './appointment-list-view'
 import AppointmentDetailModal from './appointment-detail-modal'
-import type { AppointmentData, AppointmentUpdateData } from '@/types/appointment'
+import type { AppointmentData } from '@/types/appointment'
 
 interface AppointmentsPageClientProps {
   initialAppointments: AppointmentData[]
@@ -27,11 +27,10 @@ const AppointmentsPageClient: React.FC<AppointmentsPageClientProps> = ({
     setIsModalOpen(true)
   }
 
-  const handleSaveAppointment = async (appointmentId: string, updates: AppointmentUpdateData) => {
-    // TODO: Implement the actual save functionality
-    console.log('Saving appointment:', appointmentId, updates)
-    // This would typically call an API endpoint to update the appointment
-    // For now, just close the modal
+  const handleAppointmentSaved = () => {
+    // Callback to refresh appointments list after save
+    // In a real app, this would refetch the appointments from the server
+    console.log('Appointment saved, refreshing list...')
     setIsModalOpen(false)
   }
 
@@ -90,7 +89,7 @@ const AppointmentsPageClient: React.FC<AppointmentsPageClientProps> = ({
         appointment={selectedAppointment}
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSave={handleSaveAppointment}
+        onSave={handleAppointmentSaved}
       />
     </div>
   )
