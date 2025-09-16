@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getAvailableTimeSlots } from "@/lib/availability";
+import { getAvailableTimeSlots, getSalonCapacity } from "@/lib/availability";
 import { getSalonBySlug } from "@/lib/tenancy";
 
 export async function GET(
@@ -33,7 +33,17 @@ export async function GET(
       salonTimeZone: salon.timeZone,
     });
 
-    return Response.json({ availableSlots });
+    // Get salon capacity for context
+    const salonCapacity = await getSalonCapacity(salon.id);
+
+    return Response.json({ 
+      availableSlots,
+      salonCapacity,
+      salonInfo: {
+        name: salon.name,
+        timeZone: salon.timeZone
+      }
+    });
   } catch (error) {
     console.error("Error fetching availability:", error);
     return Response.json(

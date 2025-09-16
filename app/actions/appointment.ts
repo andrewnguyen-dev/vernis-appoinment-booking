@@ -5,6 +5,7 @@ import prisma from "@/db";
 import { getSalonBySlug } from "@/lib/tenancy";
 import { fromZonedTime } from "date-fns-tz";
 import { revalidatePath } from "next/cache";
+import { isTimeSlotAvailable } from "@/lib/availability";
 
 // Validation schema for booking data
 const BookingSchema = z.object({
@@ -76,24 +77,24 @@ export async function createAppointment(data: BookingFormData) {
     const appointmentDate = fromZonedTime(localDateTime, salon.timeZone);
     const appointmentEndTime = new Date(appointmentDate.getTime() + actualTotalDuration * 60000);
 
-    // Check if the time slot is still available
-    const conflictingAppointment = await prisma.appointment.findFirst({
-      where: {
-        salonId: salon.id,
-        status: { in: ["BOOKED", "COMPLETED"] },
-        OR: [
-          {
-            startsAt: { lt: appointmentEndTime },
-            endsAt: { gt: appointmentDate },
-          },
-        ],
-      },
-    });
+    // Check if the time slot is still available considering salon capacity
+    const availabilityCheck = await isTimeSlotAvailable(
+      salon.id,
+      validatedData.date,
+      validatedData.time,
+      actualTotalDuration
+      // No excluded appointments for new bookings
+    );
 
-    if (conflictingAppointment) {
+    if (!availabilityCheck.available) {
+      const capacityInfo = availabilityCheck.capacityInfo;
+      const capacityMessage = capacityInfo 
+        ? ` (${capacityInfo.used}/${capacityInfo.total} slots filled)`
+        : "";
+      
       return {
         success: false,
-        error: "This time slot is no longer available. Please select a different time.",
+        error: `This time slot is no longer available${capacityMessage}. Please select a different time.`,
       };
     }
 
