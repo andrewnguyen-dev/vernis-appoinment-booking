@@ -50,6 +50,16 @@ export async function isOwner(userId: string, salonId?: string) {
   return hasRole(userId, "OWNER", salonId);
 }
 
+export async function isStaff(userId: string, salonId?: string) {
+  return hasRole(userId, "STAFF", salonId);
+}
+
+export async function isStaffOrOwner(userId: string, salonId?: string) {
+  const isOwner = await hasRole(userId, "OWNER", salonId);
+  const isStaff = await hasRole(userId, "STAFF", salonId);
+  return isOwner || isStaff;
+}
+
 export async function getUserSalons(userId: string, role?: Role) {
   const where: {
     userId: string;

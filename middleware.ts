@@ -5,7 +5,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Owner routes protection - only check for session cookie existence
-  if (pathname.startsWith('/dashboard') || pathname.startsWith('/catalog') || pathname.startsWith('/clients')) {
+  if (pathname.startsWith('/dashboard') || pathname.startsWith('/catalog') || pathname.startsWith('/clients') || pathname.startsWith('/staffs')) {
     const sessionCookie = getSessionCookie(request);
     
     // THIS IS NOT SECURE - only optimistic redirect
@@ -22,6 +22,7 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/catalog/:path*',
-    '/clients/:path*'
+    '/clients/:path*',
+    '/staffs/:path*'
   ]
 };

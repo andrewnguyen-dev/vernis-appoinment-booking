@@ -74,6 +74,23 @@ async function createSalonBundle({
     },
   });
 
+  // Create staff profile for the owner
+  const owner = await prisma.user.findUnique({
+    where: { id: ownerId },
+  });
+
+  if (owner) {
+    await prisma.staff.create({
+      data: {
+        userId: ownerId,
+        salonId: salon.id,
+        color: "#3B82F6", // Default blue for owners
+        active: true,
+        notes: "Salon Owner",
+      },
+    });
+  }
+
   // Categories
   const hair = await prisma.serviceCategory.create({
     data: { salonId: salon.id, name: 'Hair', order: 1 },

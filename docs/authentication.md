@@ -31,14 +31,18 @@ model Membership {
   id      String @id @default(cuid())
   userId  String
   salonId String
-  role    Role   // Currently: OWNER (extensible for STAFF, MANAGER, etc.)
+  role    Role   // OWNER or STAFF
 }
 
 enum Role {
   OWNER
-  // Future: STAFF, MANAGER, etc.
+  STAFF
 }
 ```
+
+**Role Permissions:**
+- **OWNER**: Full access to salon management dashboard, can manage staff, services, appointments, etc.
+- **STAFF**: Similar permissions to public users, cannot access owner dashboard, but has a staff profile with assigned color for appointment visualization
 
 ## Implementation Guide
 
@@ -84,7 +88,30 @@ export default async function OwnerOnlyPage() {
 }
 ```
 
-#### 3. `getOptionalAuth()` - Optional Authentication
+#### 3. `isStaffOrOwner()` - Staff or Owner Access
+For pages that require either staff or owner privileges:
+
+```typescript
+import { isStaffOrOwner } from "@/lib/user-utils";
+
+export default async function StaffOrOwnerPage() {
+  const session = await requireAuth();
+  
+  const hasAccess = await isStaffOrOwner(session.user.id, salonId);
+  if (!hasAccess) {
+    redirect("/sign-in");
+  }
+  
+  return (
+    <div>
+      <h1>Staff/Owner Content</h1>
+      {/* Content accessible to both staff and owners */}
+    </div>
+  );
+}
+```
+
+#### 4. `getOptionalAuth()` - Optional Authentication
 For pages that work with or without authentication:
 
 ```typescript
@@ -212,26 +239,54 @@ export default async function ProfilePage() {
 
 ## Extending the Role System
 
+### Staff Management
+
+The application now includes a comprehensive staff management system:
+
+#### Staff Profiles
+- Each staff member has a profile with personal information and settings
+- Staff members are assigned unique colors for appointment visualization
+- Colors can be customized by salon owners
+- Owners automatically get a staff profile when they create a salon
+
+#### Staff Management Features
+- **Add Staff**: Owners can add new staff members by email
+- **Staff Settings**: Configure staff colors, contact info, and status
+- **Active/Inactive Status**: Control which staff can be assigned to appointments
+- **Staff Colors**: Visual identification in appointment calendars and schedules
+
+#### Adding New Staff
+1. Navigate to **Staff Management** in the owner dashboard
+2. Click **Add Staff** button
+3. Enter staff member's details (name, email, phone, notes)
+4. System automatically assigns a random color
+5. Staff profile is created with active status
+
+#### Staff Profile Management
+- Owners can update staff information, colors, and status
+- Staff members can be deactivated without deletion
+- Staff colors help with appointment visualization and scheduling
+
 ### Adding New Roles
 
 1. **Update the Prisma schema:**
 ```prisma
 enum Role {
   OWNER
-  STAFF      // New role
+  STAFF
   MANAGER    // New role
 }
 ```
 
 2. **Run migration:**
 ```bash
-npm run db:migrate-dev
+npx prisma migrate dev --name add_manager_role
 ```
 
 3. **Create new auth utilities:**
 ```typescript
 // lib/auth-utils.ts
-export async function requireStaffAuth() {
+export async function requireManagerAuth() {
   const session = await auth.api.getSession({
     headers: await headers()
   });
@@ -240,10 +295,10 @@ export async function requireStaffAuth() {
     redirect("/sign-in");
   }
 
-  const hasStaffAccess = await hasRole(session.user.id, "STAFF") || 
-                        await hasRole(session.user.id, "OWNER");
+  const hasManagerAccess = await hasRole(session.user.id, "MANAGER") || 
+                          await hasRole(session.user.id, "OWNER");
   
-  if (!hasStaffAccess) {
+  if (!hasManagerAccess) {
     redirect("/sign-in");
   }
 
@@ -253,8 +308,8 @@ export async function requireStaffAuth() {
 
 4. **Use in pages:**
 ```typescript
-export default async function StaffOnlyPage() {
-  const session = await requireStaffAuth();
+export default async function ManagerOnlyPage() {
+  const session = await requireManagerAuth();
   // Page content
 }
 ```
@@ -334,7 +389,8 @@ lib/
 ├── auth.ts              # Better Auth configuration
 ├── auth-client.ts       # Client-side auth functions
 ├── auth-utils.ts        # Server-side auth utilities (USE THESE!)
-└── user-utils.ts        # Role checking functions
+├── user-utils.ts        # Role checking functions
+└── staff-utils.ts       # Staff management utilities
 
 app/
 ├── (auth)/             # Authentication pages
@@ -345,9 +401,18 @@ app/
 ├── (owner)/            # Owner-only pages
 │   ├── dashboard/
 │   ├── catalog/
-│   └── clients/
+│   ├── clients/
+│   └── staffs/         # Staff management
+├── actions/
+│   └── staff-management.ts  # Server actions for staff management
 └── api/
     └── auth/           # Auth API endpoints
+
+components/
+└── staff/              # Staff management components
+    ├── staff-manager.tsx
+    ├── staff-form.tsx
+    └── staff-settings-dialog.tsx
 
 middleware.ts           # Route protection (optimistic)
 ```
@@ -358,6 +423,7 @@ middleware.ts           # Route protection (optimistic)
 |------|-----|--------------|
 | Any authenticated user | `requireAuth()` | `/sign-in` |
 | Salon owner only | `requireOwnerAuth()` | `/owner-sign-in` |
+| Staff or owner access | `isStaffOrOwner()` | Manual redirect needed |
 | Optional auth | `getOptionalAuth()` | No redirect |
 | API protection | Manual session check | Return 401/403 |
 

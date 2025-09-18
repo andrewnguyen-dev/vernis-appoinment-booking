@@ -7,7 +7,8 @@ import {
   Calendar,
   Package,
   Users,
-  LayoutDashboard
+  LayoutDashboard,
+  UserCog
 } from "lucide-react"
 
 import {
@@ -48,6 +49,12 @@ const navItems = [
     url: "/clients",
     icon: Users,
     description: "Client list with contact info and notes"
+  },
+  {
+    title: "Staff",
+    url: "/staffs",
+    icon: UserCog,
+    description: "Manage staff members and their settings"
   }
 ]
 
