@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { fromZonedTime } from 'date-fns-tz'
 import {
@@ -18,10 +18,21 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { CalendarIcon, ClockIcon, UserIcon, PhoneIcon, MailIcon, NotebookIcon, Trash2Icon } from 'lucide-react'
-import { updateAppointment, cancelAppointment, updateAppointmentTime } from '@/app/actions/appointment-management'
+import { CalendarIcon, ClockIcon, UserIcon, PhoneIcon, MailIcon, NotebookIcon, Trash2Icon, UsersIcon } from 'lucide-react'
+import { updateAppointment, cancelAppointment, updateAppointmentTime, getSalonStaff } from '@/app/actions/appointment-management'
 import { toast } from 'react-hot-toast'
 import type { AppointmentData } from '@/types/appointment'
+
+interface StaffMember {
+  id: string
+  userId: string
+  color: string
+  active: boolean
+  notes: string | null
+  user: {
+    name: string
+  }
+}
 
 interface AppointmentDetailModalProps {
   appointment: AppointmentData | null
@@ -41,9 +52,12 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [staffList, setStaffList] = useState<StaffMember[]>([])
+  const [loadingStaff, setLoadingStaff] = useState(false)
   const [formData, setFormData] = useState({
     status: '',
     notes: '',
+    assignedStaffId: null as string | null,
     clientFirstName: '',
     clientLastName: '',
     clientEmail: '',
@@ -58,6 +72,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
       setFormData({
         status: appointment.status,
         notes: appointment.notes || '',
+        assignedStaffId: appointment.assignedStaff?.id || null,
         clientFirstName: appointment.client.firstName,
         clientLastName: appointment.client.lastName || '',
         clientEmail: appointment.client.email || '',
@@ -68,6 +83,30 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
       })
     }
   }, [appointment])
+
+  // Load staff list when modal opens and user starts editing
+  useEffect(() => {
+    if (isOpen && isEditing && staffList.length === 0) {
+      loadStaffList()
+    }
+  }, [isOpen, isEditing, staffList.length])
+
+  const loadStaffList = async () => {
+    setLoadingStaff(true)
+    try {
+      const result = await getSalonStaff()
+      if (result.success && result.data) {
+        setStaffList(result.data)
+      } else {
+        toast.error('Failed to load staff list')
+      }
+    } catch (error) {
+      console.error('Error loading staff:', error)
+      toast.error('Failed to load staff list')
+    } finally {
+      setLoadingStaff(false)
+    }
+  }
 
   if (!appointment) return null
 
@@ -117,6 +156,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
         appointmentId: appointment.id,
         status: formData.status as "BOOKED" | "COMPLETED" | "CANCELED",
         notes: formData.notes,
+        assignedStaffId: formData.assignedStaffId,
         client: {
           firstName: formData.clientFirstName,
           lastName: formData.clientLastName,
@@ -145,6 +185,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     setFormData({
       status: appointment.status,
       notes: appointment.notes || '',
+      assignedStaffId: appointment.assignedStaff?.id || null,
       clientFirstName: appointment.client.firstName,
       clientLastName: appointment.client.lastName || '',
       clientEmail: appointment.client.email || '',
@@ -272,6 +313,76 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               }`}>
                 {appointment.status}
               </Badge>
+            )}
+          </div>
+
+          {/* Staff Assignment */}
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <UsersIcon className="h-4 w-4 text-gray-500" />
+              <span className="font-medium text-sm">Assigned Staff</span>
+            </div>
+            
+            {isEditing ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  {/* Unassigned option */}
+                  <Button
+                    type="button"
+                    variant={formData.assignedStaffId === null ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setFormData({ ...formData, assignedStaffId: null })}
+                  >
+                    No staff assigned
+                  </Button>
+                  
+                  {/* Staff options or loading skeletons */}
+                  {loadingStaff ? (
+                    // Loading skeletons
+                    Array.from({ length: 2 }).map((_, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center space-x-2 px-3 py-2 border border-gray-200 rounded-md bg-gray-50 animate-pulse"
+                      >
+                        <div className="w-3 h-3 rounded-full bg-gray-300"></div>
+                        <div className="h-4 bg-gray-300 rounded w-16"></div>
+                      </div>
+                    ))
+                  ) : (
+                    // Actual staff buttons
+                    staffList.map((staff) => (
+                      <Button
+                        key={staff.id}
+                        type="button"
+                        variant={formData.assignedStaffId === staff.id ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFormData({ ...formData, assignedStaffId: staff.id })}
+                        className="flex items-center space-x-2"
+                      >
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: staff.color }}
+                        />
+                        <span>{staff.user.name}</span>
+                      </Button>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="py-2">
+                {appointment.assignedStaff ? (
+                  <div className="flex items-center space-x-2">
+                    <div 
+                      className="w-3 h-3 rounded-full" 
+                      style={{ backgroundColor: appointment.assignedStaff.color }}
+                    />
+                    <span className="text-sm">{appointment.assignedStaff.user.name}</span>
+                  </div>
+                ) : (
+                  <span className="text-sm text-gray-500">No staff assigned</span>
+                )}
+              </div>
             )}
           </div>
 

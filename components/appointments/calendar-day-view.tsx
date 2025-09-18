@@ -208,6 +208,15 @@ const CalendarDayView: React.FC<CalendarDayViewProps> = ({
                     <div className="text-xs opacity-75 truncate">
                       {format(appointment.startsAtLocal, 'h:mm a')} - {format(appointment.endsAtLocal, 'h:mm a')}
                     </div>
+                    {appointment.assignedStaff && (
+                      <div className="text-xs opacity-75 truncate mt-1 flex items-center">
+                        <div 
+                          className="w-2 h-2 rounded-full mr-1" 
+                          style={{ backgroundColor: appointment.assignedStaff.color }}
+                        />
+                        {appointment.assignedStaff.user.name}
+                      </div>
+                    )}
                     {appointment.items.length > 0 && (
                       <div className="text-xs opacity-75 truncate mt-1">
                         {appointment.items[0].serviceName}

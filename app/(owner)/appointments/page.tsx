@@ -29,6 +29,18 @@ async function getUpcomingAppointments(salonId: string, salonTimeZone: string): 
           phone: true,
         },
       },
+      assignedStaff: {
+        select: {
+          id: true,
+          userId: true,
+          color: true,
+          user: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
       items: {
         include: {
           service: {

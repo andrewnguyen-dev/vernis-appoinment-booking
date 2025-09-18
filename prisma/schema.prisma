@@ -174,6 +174,8 @@ model Staff {
   salon Salon @relation(fields: [salonId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  appointments Appointment[] // appointments assigned to this staff
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -250,15 +252,17 @@ model Appointment {
   id              String            @id @default(cuid())
   salonId         String
   clientId        String
+  assignedStaffId String?           // optional staff assignment
   startsAt        DateTime
   endsAt          DateTime
   status          AppointmentStatus @default(BOOKED)
   notes           String?
   createdByUserId String? // staff/owner who created it; null if self-serve
 
-  salon     Salon  @relation(fields: [salonId], references: [id], onDelete: Cascade)
-  client    Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  createdBy User?  @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  salon         Salon  @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  client        Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  assignedStaff Staff? @relation(fields: [assignedStaffId], references: [id], onDelete: SetNull)
+  createdBy     User?  @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   items    AppointmentItem[]
   payments Payment[]
@@ -269,6 +273,7 @@ model Appointment {
 
   @@index([salonId, startsAt])
   @@index([clientId, startsAt])
+  @@index([assignedStaffId])
   @@index([status])
   @@map("appointment")
 }
