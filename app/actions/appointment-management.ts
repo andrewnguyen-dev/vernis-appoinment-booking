@@ -12,6 +12,7 @@ const UpdateAppointmentSchema = z.object({
   appointmentId: z.string().cuid(),
   status: z.enum(["BOOKED", "COMPLETED", "CANCELED"]),
   notes: z.string().optional(),
+  assignedStaffId: z.string().cuid().optional().nullable(),
   client: z.object({
     firstName: z.string().min(1, "First name is required"),
     lastName: z.string().optional(),
@@ -76,6 +77,20 @@ export async function updateAppointment(data: UpdateAppointmentData) {
       }
     }
 
+    // If assigning a staff, verify the staff belongs to the salon
+    if (validatedData.assignedStaffId) {
+      const staff = await prisma.staff.findUnique({
+        where: { id: validatedData.assignedStaffId },
+      })
+
+      if (!staff || staff.salonId !== existingAppointment.salonId) {
+        return {
+          success: false,
+          error: "Invalid staff assignment"
+        }
+      }
+    }
+
     // Update the appointment and client in a transaction
     const updatedAppointment = await prisma.$transaction(async (tx) => {
       // Update client information
@@ -95,9 +110,22 @@ export async function updateAppointment(data: UpdateAppointmentData) {
         data: {
           status: validatedData.status,
           notes: validatedData.notes || null,
+          assignedStaffId: validatedData.assignedStaffId || null,
         },
         include: {
           client: true,
+          assignedStaff: {
+            select: {
+              id: true,
+              userId: true,
+              color: true,
+              user: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
           items: {
             include: {
               service: {
@@ -235,6 +263,18 @@ export async function updateAppointmentTime(data: UpdateAppointmentTimeData) {
       },
       include: {
         client: true,
+        assignedStaff: {
+          select: {
+            id: true,
+            userId: true,
+            color: true,
+            user: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
         items: {
           include: {
             service: {
@@ -390,6 +430,18 @@ export async function getAppointmentById(appointmentId: string) {
             phone: true,
           },
         },
+        assignedStaff: {
+          select: {
+            id: true,
+            userId: true,
+            color: true,
+            user: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
         items: {
           include: {
             service: {
@@ -450,6 +502,67 @@ export async function getAppointmentById(appointmentId: string) {
     return {
       success: false,
       error: "Failed to fetch appointment"
+    }
+  }
+}
+
+// Get all active staff for a salon
+export async function getSalonStaff(salonId?: string) {
+  try {
+    // Ensure user is authenticated and has owner role
+    const session = await requireOwnerAuth()
+    
+    // Get user's salons to verify ownership
+    const salons = await getUserSalons(session.user.id, 'OWNER')
+    const salonIds = salons.map(salon => salon.id)
+    
+    if (salonIds.length === 0) {
+      return {
+        success: false,
+        error: "No salon found for this user"
+      }
+    }
+
+    // Use provided salonId or default to first salon
+    const targetSalonId = salonId || salonIds[0]
+    
+    if (!salonIds.includes(targetSalonId)) {
+      return {
+        success: false,
+        error: "You don't have permission to view this salon's staff"
+      }
+    }
+
+    const staff = await prisma.staff.findMany({
+      where: {
+        salonId: targetSalonId,
+        active: true,
+      },
+      include: {
+        user: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        user: {
+          name: 'asc',
+        },
+      },
+    })
+
+    return {
+      success: true,
+      data: staff
+    }
+
+  } catch (error) {
+    console.error("Error fetching salon staff:", error)
+    
+    return {
+      success: false,
+      error: "Failed to fetch salon staff"
     }
   }
 }

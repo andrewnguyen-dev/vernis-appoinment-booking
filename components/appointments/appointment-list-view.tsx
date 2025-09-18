@@ -78,6 +78,20 @@ const AppointmentListView: React.FC<AppointmentListViewProps> = ({
                   </div>
                 </div>
 
+                {/* Assigned Staff */}
+                {appointment.assignedStaff && (
+                  <div className="mb-3">
+                    <h4 className="text-sm font-medium text-gray-900 mb-1">Assigned Staff:</h4>
+                    <div className="flex items-center space-x-2 text-sm text-gray-600">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: appointment.assignedStaff.color }}
+                      />
+                      <span>{appointment.assignedStaff.user.name}</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Notes */}
                 {appointment.notes && (
                   <div className="mb-3">

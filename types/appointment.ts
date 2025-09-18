@@ -13,6 +13,14 @@ export interface AppointmentData {
     email: string | null
     phone: string | null
   }
+  assignedStaff?: {
+    id: string
+    userId: string
+    color: string
+    user: {
+      name: string
+    }
+  } | null
   items: Array<{
     id: string
     serviceName: string
@@ -37,6 +45,7 @@ export interface AppointmentData {
 export interface AppointmentUpdateData {
   status: string
   notes: string
+  assignedStaffId?: string | null
   client: {
     firstName: string
     lastName: string
