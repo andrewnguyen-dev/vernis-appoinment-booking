@@ -73,7 +73,6 @@ export async function getSalonStaffWithOwnership(salonId: string) {
   const staff = await prisma.staff.findMany({
     where: {
       salonId,
-      active: true,
     },
     include: {
       user: {
