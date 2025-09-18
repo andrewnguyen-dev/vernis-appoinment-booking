@@ -79,3 +79,14 @@ export async function getUserSalons(userId: string, role?: Role) {
 
   return memberships.map(m => m.salon);
 }
+
+export async function getOwnerSalonOrThrow(userId: string) {
+  const salons = await getUserSalons(userId, "OWNER");
+  const salon = salons[0];
+
+  if (!salon) {
+    throw new Error("No salon found for user");
+  }
+
+  return salon;
+}

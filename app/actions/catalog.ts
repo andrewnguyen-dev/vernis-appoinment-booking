@@ -3,7 +3,8 @@
 import { z } from "zod";
 import prisma from "@/db";
 import { requireOwnerAuth } from "@/lib/auth-utils";
-import { getUserSalons } from "@/lib/user-utils";
+import { getOwnerCatalog } from "@/lib/catalog";
+import { getOwnerSalonOrThrow } from "@/lib/user-utils";
 import { revalidatePath } from "next/cache";
 import {
   createCategorySchema,
@@ -22,21 +23,12 @@ import {
   type ReorderCategoriesData,
 } from "@/helpers/zod/catalog-schemas";
 
-// Helper function to get user's salon
-async function getUserSalon(userId: string) {
-  const salons = await getUserSalons(userId, "OWNER");
-  if (salons.length === 0) {
-    throw new Error("No salon found for user");
-  }
-  return salons[0]; // For now, assume owner has one salon
-}
-
 // Category Actions
 export async function createCategory(data: CreateCategoryData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = createCategorySchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Check if category with this name already exists
     const existingCategory = await prisma.serviceCategory.findUnique({
@@ -90,7 +82,7 @@ export async function updateCategory(data: UpdateCategoryData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = updateCategorySchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Verify category belongs to user's salon
     const existingCategory = await prisma.serviceCategory.findFirst({
@@ -158,7 +150,7 @@ export async function deleteCategory(data: DeleteCategoryData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = deleteCategorySchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Verify category belongs to user's salon
     const existingCategory = await prisma.serviceCategory.findFirst({
@@ -218,7 +210,7 @@ export async function createService(data: CreateServiceData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = createServiceSchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Check if service with this name already exists
     const existingService = await prisma.service.findUnique({
@@ -295,7 +287,7 @@ export async function updateService(data: UpdateServiceData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = updateServiceSchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Verify service belongs to user's salon
     const existingService = await prisma.service.findFirst({
@@ -386,7 +378,7 @@ export async function deleteService(data: DeleteServiceData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = deleteServiceSchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Verify service belongs to user's salon
     const existingService = await prisma.service.findFirst({
@@ -448,7 +440,7 @@ export async function reorderCategories(data: ReorderCategoriesData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = reorderCategoriesSchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Verify all categories belong to user's salon
     const categoryIds = validatedData.categoryOrders.map(c => c.id);
@@ -503,25 +495,7 @@ export async function reorderCategories(data: ReorderCategoriesData) {
 export async function getCatalogData() {
   try {
     const session = await requireOwnerAuth();
-    const salon = await getUserSalon(session.user.id);
-
-    const categories = await prisma.serviceCategory.findMany({
-      where: { salonId: salon.id },
-      include: {
-        services: {
-          orderBy: { name: "asc" },
-        },
-      },
-      orderBy: { order: "asc" },
-    });
-
-    const uncategorizedServices = await prisma.service.findMany({
-      where: {
-        salonId: salon.id,
-        categoryId: null,
-      },
-      orderBy: { name: "asc" },
-    });
+    const { categories, uncategorizedServices } = await getOwnerCatalog(session.user.id);
 
     return {
       success: true,
