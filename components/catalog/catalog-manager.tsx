@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CatalogTable } from "./catalog-table";
 import { CategoryForm } from "./category-form";
 import { ServiceForm } from "./service-form";
-import { getCatalogData } from "@/app/actions/catalog";
 import { FiPlus } from "react-icons/fi";
 import toast from "react-hot-toast";
+
+import { getCatalogData } from "@/app/actions/catalog";
 
 interface Category {
   id: string;
@@ -29,14 +30,25 @@ interface Service {
   } | null;
 }
 
-export function CatalogManager() {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [uncategorizedServices, setUncategorizedServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true);
+interface CatalogManagerProps {
+  categories: Category[];
+  uncategorizedServices: Service[];
+}
+
+export function CatalogManager({
+  categories: initialCategories,
+  uncategorizedServices: initialUncategorizedServices,
+}: CatalogManagerProps) {
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [uncategorizedServices, setUncategorizedServices] = useState<Service[]>(
+    initialUncategorizedServices,
+  );
+  const [loading, setLoading] = useState(false);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [showServiceForm, setShowServiceForm] = useState(false);
 
   const loadData = async () => {
+    setLoading(true);
     try {
       const result = await getCatalogData();
       if (result.success && result.data) {
@@ -52,14 +64,12 @@ export function CatalogManager() {
     }
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
   const allCategories = categories.map(cat => ({ id: cat.id, name: cat.name }));
   const totalServices = categories.reduce((sum, cat) => sum + cat.services.length, 0) + uncategorizedServices.length;
 
-  if (loading) {
+  const hasCatalogContent = categories.length > 0 || uncategorizedServices.length > 0;
+
+  if (loading && !hasCatalogContent) {
     return (
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
