@@ -43,6 +43,37 @@ const CalendarDayView: React.FC<CalendarDayViewProps> = ({
     return appointmentDate.toDateString() === selectedDate.toDateString()
   })
 
+  // Function to check if two appointments overlap
+  const appointmentsOverlap = (apt1: AppointmentData, apt2: AppointmentData) => {
+    const start1 = apt1.startsAtLocal.getTime()
+    const end1 = apt1.endsAtLocal.getTime()
+    const start2 = apt2.startsAtLocal.getTime()
+    const end2 = apt2.endsAtLocal.getTime()
+    
+    return start1 < end2 && start2 < end1
+  }
+
+  // Function to calculate overlap level for each appointment
+  const getAppointmentOverlapLevel = (targetAppointment: AppointmentData) => {
+    let overlapLevel = 0
+    
+    // Sort appointments by start time to determine which comes first
+    const sortedAppointments = [...dayAppointments].sort((a, b) => 
+      a.startsAtLocal.getTime() - b.startsAtLocal.getTime()
+    )
+    
+    // Find appointments that overlap with the target and start before it
+    for (const appointment of sortedAppointments) {
+      if (appointment.id === targetAppointment.id) break
+      
+      if (appointmentsOverlap(appointment, targetAppointment)) {
+        overlapLevel++
+      }
+    }
+    
+    return overlapLevel
+  }
+
   // Function to calculate position and height for appointments
   const getAppointmentStyle = (appointment: AppointmentData) => {
     const startHour = appointment.startsAtLocal.getHours()
@@ -146,35 +177,47 @@ const CalendarDayView: React.FC<CalendarDayViewProps> = ({
             ))}
 
             {/* Appointments */}
-            {dayAppointments.map((appointment) => (
-              <div
-                key={appointment.id}
-                className="absolute left-1 right-1 sm:left-2 sm:right-2 z-10 cursor-pointer"
-                style={getAppointmentStyle(appointment)}
-                onClick={() => onAppointmentClick(appointment)}
-              >
-                <div className={`h-full rounded-md border-l-4 px-2 py-1 shadow-sm text-xs ${
-                  appointment.status === 'BOOKED' 
-                    ? 'bg-green-50 border-green-400 text-green-900' 
-                    : appointment.status === 'COMPLETED'
-                    ? 'bg-blue-50 border-blue-400 text-blue-900'
-                    : 'bg-gray-50 border-gray-400 text-gray-900'
-                }`}>
-                  <div className="font-medium truncate">
-                    {appointment.client.firstName} {appointment.client.lastName}
-                  </div>
-                  <div className="text-xs opacity-75 truncate">
-                    {format(appointment.startsAtLocal, 'h:mm a')} - {format(appointment.endsAtLocal, 'h:mm a')}
-                  </div>
-                  {appointment.items.length > 0 && (
-                    <div className="text-xs opacity-75 truncate mt-1">
-                      {appointment.items[0].serviceName}
-                      {appointment.items.length > 1 && ` +${appointment.items.length - 1} more`}
+            {dayAppointments.map((appointment) => {
+              const appointmentStyle = getAppointmentStyle(appointment)
+              const overlapLevel = getAppointmentOverlapLevel(appointment)
+              const leftOffset = overlapLevel * 20 + 4 // 20px per overlap + base 4px (left-1)
+              
+              return (
+                <div
+                  key={appointment.id}
+                  className="absolute z-10 cursor-pointer"
+                  style={{
+                    top: appointmentStyle.top,
+                    height: appointmentStyle.height,
+                    left: `${leftOffset}px`,
+                    right: '0.25rem', // 1 on mobile, 2 on sm
+                    width: `calc(100% - ${leftOffset + 4}px)`, // Subtract left offset + right margin
+                  }}
+                  onClick={() => onAppointmentClick(appointment)}
+                >
+                  <div className={`h-full rounded-md border-l-4 px-2 py-1 shadow-sm text-xs ${
+                    appointment.status === 'BOOKED' 
+                      ? 'bg-green-50 border-green-400 text-green-900' 
+                      : appointment.status === 'COMPLETED'
+                      ? 'bg-blue-50 border-blue-400 text-blue-900'
+                      : 'bg-gray-50 border-gray-400 text-gray-900'
+                  }`}>
+                    <div className="font-medium truncate">
+                      {appointment.client.firstName} {appointment.client.lastName}
                     </div>
-                  )}
+                    <div className="text-xs opacity-75 truncate">
+                      {format(appointment.startsAtLocal, 'h:mm a')} - {format(appointment.endsAtLocal, 'h:mm a')}
+                    </div>
+                    {appointment.items.length > 0 && (
+                      <div className="text-xs opacity-75 truncate mt-1">
+                        {appointment.items[0].serviceName}
+                        {appointment.items.length > 1 && ` +${appointment.items.length - 1} more`}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
 
             {/* Current Time Line */}
             {currentTimePosition !== null && (
