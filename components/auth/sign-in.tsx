@@ -92,7 +92,7 @@ const SignIn = () => {
               </FormItem>
             )}
           />
-          <a href="/forgot-password" className="flex justify-end self-end text-sm underline-offset-4 hover:underline">
+          <a href="/forgot-password" className="flex justify-end self-end text-sm">
             Forgot your password?
           </a>
           <FormError message={error} />
@@ -103,7 +103,7 @@ const SignIn = () => {
         </form>
       </Form>
       <div className="mt-4 text-center">
-        <a href="/owner-sign-in" className="text-sm text-muted-foreground hover:underline">
+        <a href="/owner-sign-in" className="text-sm text-muted-foreground">
           Are you a salon owner? Sign in here
         </a>
       </div>

@@ -120,3 +120,7 @@
     @apply bg-background text-foreground;
   }
 }
+
+a {
+  @apply underline underline-offset-2 decoration-gray-300 hover:decoration-gray-900 transition-all duration-200;
+}

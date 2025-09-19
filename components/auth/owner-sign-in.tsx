@@ -100,7 +100,7 @@ const OwnerSignIn = () => {
               </FormItem>
             )}
           />
-          <a href="/forgot-password" className="flex justify-end self-end text-sm underline-offset-4 hover:underline">
+          <a href="/forgot-password" className="flex justify-end self-end text-sm">
             Forgot your password?
           </a>
           <FormError message={error} />
@@ -111,7 +111,7 @@ const OwnerSignIn = () => {
         </form>
       </Form>
       <div className="mt-4 text-center">
-        <a href="/sign-in" className="text-sm text-muted-foreground hover:underline">
+        <a href="/sign-in" className="text-sm text-muted-foreground">
           Sign in as a regular customer instead
         </a>
       </div>
