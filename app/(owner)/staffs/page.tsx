@@ -1,14 +1,13 @@
 import { requireOwnerAuth } from "@/lib/auth-utils";
-import { getUserSalons } from "@/lib/user-utils";
+import { getUserSalon } from "@/lib/user-utils";
 import { getSalonStaffWithOwnership } from "@/lib/staff-utils";
 import { StaffManager } from "@/components/staff/staff-manager";
 
 export default async function StaffsPage() {
   const session = await requireOwnerAuth();
   
-  // Get the user's salon (assuming owner has one salon for now)
-  const salons = await getUserSalons(session.user.id, "OWNER");
-  const salon = salons[0];
+  // Get the user's salon (owners are limited to one salon)
+  const salon = await getUserSalon(session.user.id, "OWNER");
 
   if (!salon) {
     return (

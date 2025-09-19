@@ -3,7 +3,7 @@
 import { z } from "zod";
 import prisma from "@/db";
 import { requireOwnerAuth } from "@/lib/auth-utils";
-import { getUserSalons } from "@/lib/user-utils";
+import { getUserSalon } from "@/lib/user-utils";
 import { revalidatePath } from "next/cache";
 import {
   updateSalonSchema,
@@ -11,19 +11,19 @@ import {
 } from "@/helpers/zod/salon-schemas";
 
 // Helper function to get user's salon
-async function getUserSalon(userId: string) {
-  const salons = await getUserSalons(userId, "OWNER");
-  if (salons.length === 0) {
+async function getOwnerSalonOrThrow(userId: string) {
+  const salon = await getUserSalon(userId, "OWNER");
+  if (!salon) {
     throw new Error("No salon found for user");
   }
-  return salons[0]; // For now, assume owner has one salon
+  return salon;
 }
 
 // Get salon settings
 export async function getSalonSettings() {
   try {
     const session = await requireOwnerAuth();
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     return {
       success: true,
@@ -51,7 +51,7 @@ export async function updateSalonSettings(data: UpdateSalonData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = updateSalonSchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Check if slug is unique (excluding current salon)
     if (validatedData.slug !== salon.slug) {

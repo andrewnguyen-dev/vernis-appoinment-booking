@@ -1,6 +1,6 @@
 import { auth } from "@/lib/auth";
 import prisma from "@/db";
-import { Role } from "@prisma/client";
+import type { Role, Salon } from "@prisma/client";
 
 export async function getCurrentUser() {
   try {
@@ -37,7 +37,7 @@ export async function hasRole(userId: string, role: Role, salonId?: string) {
     userId,
     role,
   };
-  
+
   if (salonId) {
     where.salonId = salonId;
   }
@@ -60,22 +60,22 @@ export async function isStaffOrOwner(userId: string, salonId?: string) {
   return isOwner || isStaff;
 }
 
-export async function getUserSalons(userId: string, role?: Role) {
+export async function getUserSalon(userId: string, role?: Role): Promise<Salon | null> {
   const where: {
     userId: string;
     role?: Role;
   } = { userId };
-  
+
   if (role) {
     where.role = role;
   }
 
-  const memberships = await prisma.membership.findMany({
+  const membership = await prisma.membership.findFirst({
     where,
     include: {
       salon: true,
     },
   });
 
-  return memberships.map(m => m.salon);
+  return membership?.salon ?? null;
 }

@@ -3,7 +3,7 @@
 import { z } from "zod";
 import prisma from "@/db";
 import { requireOwnerAuth } from "@/lib/auth-utils";
-import { getUserSalons } from "@/lib/user-utils";
+import { getUserSalon } from "@/lib/user-utils";
 import { revalidatePath } from "next/cache";
 import {
   createCategorySchema,
@@ -23,12 +23,12 @@ import {
 } from "@/helpers/zod/catalog-schemas";
 
 // Helper function to get user's salon
-async function getUserSalon(userId: string) {
-  const salons = await getUserSalons(userId, "OWNER");
-  if (salons.length === 0) {
+async function getOwnerSalonOrThrow(userId: string) {
+  const salon = await getUserSalon(userId, "OWNER");
+  if (!salon) {
     throw new Error("No salon found for user");
   }
-  return salons[0]; // For now, assume owner has one salon
+  return salon;
 }
 
 // Category Actions
@@ -36,7 +36,7 @@ export async function createCategory(data: CreateCategoryData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = createCategorySchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Check if category with this name already exists
     const existingCategory = await prisma.serviceCategory.findUnique({
@@ -90,7 +90,7 @@ export async function updateCategory(data: UpdateCategoryData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = updateCategorySchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Verify category belongs to user's salon
     const existingCategory = await prisma.serviceCategory.findFirst({
@@ -158,7 +158,7 @@ export async function deleteCategory(data: DeleteCategoryData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = deleteCategorySchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Verify category belongs to user's salon
     const existingCategory = await prisma.serviceCategory.findFirst({

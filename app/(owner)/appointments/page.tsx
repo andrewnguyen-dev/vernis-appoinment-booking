@@ -1,6 +1,6 @@
 import React from 'react'
 import { requireOwnerAuth } from '@/lib/auth-utils'
-import { getUserSalons } from '@/lib/user-utils'
+import { getUserSalon } from '@/lib/user-utils'
 import prisma from '@/db'
 import { toZonedTime } from 'date-fns-tz'
 import AppointmentsView from '@/app/(owner)/appointments/appointments-view'
@@ -84,10 +84,10 @@ const AppointmentsPage = async () => {
   // Ensure user is authenticated and has owner role
   const session = await requireOwnerAuth()
   
-  // Get user's salons (assuming owner has one salon for now)
-  const salons = await getUserSalons(session.user.id, 'OWNER')
-  
-  if (salons.length === 0) {
+  // Get user's salon (owners are limited to one salon)
+  const salon = await getUserSalon(session.user.id, 'OWNER')
+
+  if (!salon) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
         <h1 className="text-2xl font-bold mb-4">No Salon Found</h1>
@@ -95,9 +95,6 @@ const AppointmentsPage = async () => {
       </div>
     )
   }
-
-  // For now, use the first salon (in a multi-salon setup, this would be from URL params or selection)
-  const salon = salons[0]
   
   // Fetch upcoming appointments
   const appointments = await getUpcomingAppointments(salon.id, salon.timeZone)

@@ -3,7 +3,7 @@
 import { z } from "zod"
 import prisma from "@/db"
 import { requireOwnerAuth } from "@/lib/auth-utils"
-import { getUserSalons } from "@/lib/user-utils"
+import { getUserSalon } from "@/lib/user-utils"
 import { isTimeSlotAvailable } from "@/lib/availability"
 import { revalidatePath } from "next/cache"
 
@@ -43,11 +43,10 @@ export async function updateAppointment(data: UpdateAppointmentData) {
     // Ensure user is authenticated and has owner role
     const session = await requireOwnerAuth()
     
-    // Get user's salons to verify ownership
-    const salons = await getUserSalons(session.user.id, 'OWNER')
-    const salonIds = salons.map(salon => salon.id)
-    
-    if (salonIds.length === 0) {
+    // Get user's salon to verify ownership
+    const salon = await getUserSalon(session.user.id, 'OWNER')
+
+    if (!salon) {
       return {
         success: false,
         error: "No salon found for this user"
@@ -70,7 +69,7 @@ export async function updateAppointment(data: UpdateAppointmentData) {
       }
     }
 
-    if (!salonIds.includes(existingAppointment.salonId)) {
+    if (existingAppointment.salonId !== salon.id) {
       return {
         success: false,
         error: "You don't have permission to update this appointment"
@@ -191,11 +190,10 @@ export async function updateAppointmentTime(data: UpdateAppointmentTimeData) {
     // Ensure user is authenticated and has owner role
     const session = await requireOwnerAuth()
     
-    // Get user's salons to verify ownership
-    const salons = await getUserSalons(session.user.id, 'OWNER')
-    const salonIds = salons.map(salon => salon.id)
-    
-    if (salonIds.length === 0) {
+    // Get user's salon to verify ownership
+    const salon = await getUserSalon(session.user.id, 'OWNER')
+
+    if (!salon) {
       return {
         success: false,
         error: "No salon found for this user"
@@ -215,7 +213,7 @@ export async function updateAppointmentTime(data: UpdateAppointmentTimeData) {
       }
     }
 
-    if (!salonIds.includes(existingAppointment.salonId)) {
+    if (existingAppointment.salonId !== salon.id) {
       return {
         success: false,
         error: "You don't have permission to update this appointment"
@@ -337,11 +335,10 @@ export async function cancelAppointment(appointmentId: string) {
     // Ensure user is authenticated and has owner role
     const session = await requireOwnerAuth()
     
-    // Get user's salons to verify ownership
-    const salons = await getUserSalons(session.user.id, 'OWNER')
-    const salonIds = salons.map(salon => salon.id)
-    
-    if (salonIds.length === 0) {
+    // Get user's salon to verify ownership
+    const salon = await getUserSalon(session.user.id, 'OWNER')
+
+    if (!salon) {
       return {
         success: false,
         error: "No salon found for this user"
@@ -361,7 +358,7 @@ export async function cancelAppointment(appointmentId: string) {
       }
     }
 
-    if (!salonIds.includes(existingAppointment.salonId)) {
+    if (existingAppointment.salonId !== salon.id) {
       return {
         success: false,
         error: "You don't have permission to cancel this appointment"
@@ -407,11 +404,10 @@ export async function getAppointmentById(appointmentId: string) {
     // Ensure user is authenticated and has owner role
     const session = await requireOwnerAuth()
     
-    // Get user's salons to verify ownership
-    const salons = await getUserSalons(session.user.id, 'OWNER')
-    const salonIds = salons.map(salon => salon.id)
-    
-    if (salonIds.length === 0) {
+    // Get user's salon to verify ownership
+    const salon = await getUserSalon(session.user.id, 'OWNER')
+
+    if (!salon) {
       return {
         success: false,
         error: "No salon found for this user"
@@ -484,7 +480,7 @@ export async function getAppointmentById(appointmentId: string) {
       }
     }
 
-    if (!salonIds.includes(appointment.salonId)) {
+    if (appointment.salonId !== salon.id) {
       return {
         success: false,
         error: "You don't have permission to view this appointment"
@@ -512,11 +508,10 @@ export async function getSalonStaff(salonId?: string) {
     // Ensure user is authenticated and has owner role
     const session = await requireOwnerAuth()
     
-    // Get user's salons to verify ownership
-    const salons = await getUserSalons(session.user.id, 'OWNER')
-    const salonIds = salons.map(salon => salon.id)
-    
-    if (salonIds.length === 0) {
+    // Get user's salon to verify ownership
+    const salon = await getUserSalon(session.user.id, 'OWNER')
+
+    if (!salon) {
       return {
         success: false,
         error: "No salon found for this user"
@@ -524,9 +519,9 @@ export async function getSalonStaff(salonId?: string) {
     }
 
     // Use provided salonId or default to first salon
-    const targetSalonId = salonId || salonIds[0]
-    
-    if (!salonIds.includes(targetSalonId)) {
+    const targetSalonId = salonId || salon.id
+
+    if (targetSalonId !== salon.id) {
       return {
         success: false,
         error: "You don't have permission to view this salon's staff"

@@ -15,7 +15,6 @@ import { useRouter } from "next/navigation";
 import ForgotPasswordSchema from "@/helpers/zod/forgot-password-schema";
 
 const ForgotPassword = () => {
-  const router = useRouter();
   const { error, success, loading, setSuccess, setError, setLoading, resetState } = useAuthState();
 
   const form = useForm<z.infer<typeof ForgotPasswordSchema>>({
