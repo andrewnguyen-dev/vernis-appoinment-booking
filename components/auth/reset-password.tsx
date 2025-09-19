@@ -18,7 +18,7 @@ const ResetPassword = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
-  const { error, success, loading, setSuccess, setError, setLoading, resetState } = useAuthState();
+  const { error, success, loading, setSuccess, setError, setLoading } = useAuthState();
 
   const form = useForm<z.infer<typeof ResetPasswordSchema>>({
     resolver: zodResolver(ResetPasswordSchema),

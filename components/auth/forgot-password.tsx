@@ -11,11 +11,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
 import { forgetPassword } from "@/lib/auth-client";
-import { useRouter } from "next/navigation";
 import ForgotPasswordSchema from "@/helpers/zod/forgot-password-schema";
 
 const ForgotPassword = () => {
-  const { error, success, loading, setSuccess, setError, setLoading, resetState } = useAuthState();
+  const { error, success, loading, setSuccess, setError, setLoading } = useAuthState();
 
   const form = useForm<z.infer<typeof ForgotPasswordSchema>>({
     resolver: zodResolver(ForgotPasswordSchema),
