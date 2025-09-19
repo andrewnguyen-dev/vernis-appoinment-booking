@@ -5,7 +5,7 @@ alwaysApply: true
 - Help Cursor generate code and docs that match Vernis: a multi-tenant salon booking system.
 - MVP rules: no staff selection by customers, multi-service appointments, payments, categories.
 
-# --- Business & Product ---
+# Business & Product
 BUSINESS.name: "Vernis"
 BUSINESS.type: "Multi-tenant SaaS for salons"
 BUSINESS.region_default_tz: "Australia/Sydney"
@@ -19,7 +19,7 @@ VALUE_PROP:
   - Integrated payments
   - Ready for salons to onboard quickly
 
-# --- Architecture & Stack ---
+# Architecture & Stack
 STACK.frontend: Next.js 15 (App Router), TypeScript, TailwindCSS, shadcn/ui
 STACK.backend: Next.js Route Handlers + Server Actions
 STACK.db: Vercel Postgres via Prisma
