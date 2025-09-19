@@ -126,8 +126,11 @@ model Salon {
   customDomain String? @unique
   logoUrl      String?
 
-  // Optional for future scaling, control concurrent bookings in app logic
-  capacity Int? // e.g., number of chairs/rooms
+  // Required for concurrent bookings control
+  capacity Int // e.g., number of chairs/rooms
+  
+  // Onboarding completion status
+  hasCompletedOnboarding Boolean @default(false)
 
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
