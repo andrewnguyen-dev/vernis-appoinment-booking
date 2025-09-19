@@ -8,7 +8,8 @@ import {
   Package,
   Users,
   LayoutDashboard,
-  UserCog
+  UserCog,
+  Settings
 } from "lucide-react"
 
 import {
@@ -55,6 +56,12 @@ const navItems = [
     url: "/staffs",
     icon: UserCog,
     description: "Manage staff members and their settings"
+  },
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Settings,
+    description: "Configure your salon's basic information and preferences"
   }
 ]
 

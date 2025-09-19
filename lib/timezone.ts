@@ -159,3 +159,11 @@ export function formatDateInTimezone(date: Date, timezone: string, options?: Int
   
   return new Intl.DateTimeFormat('en-US', { ...defaultOptions, ...options }).format(date);
 }
+
+// Get available time zones for UI components (simplified format)
+export function getAvailableTimeZones() {
+  return getSupportedTimezones().map(tz => ({
+    value: tz.value,
+    label: tz.label,
+  }));
+}
