@@ -38,7 +38,7 @@ const CardWrapper = ({
       {cardFooterLink && (
         <CardFooter className="flex items-center justify-center gap-x-1">
           {cardFooterDescription && <span>{cardFooterDescription}</span>}
-          <Link href={cardFooterLink}>
+          <Link href={cardFooterLink} className='custom-underline'>
             {cardFooterLinkTitle}
           </Link>
         </CardFooter>

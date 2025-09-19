@@ -103,9 +103,12 @@ const SignIn = () => {
         </form>
       </Form>
       <div className="mt-4 text-center">
-        <a href="/owner-sign-in" className="text-sm text-muted-foreground">
-          Are you a salon owner? Sign in here
-        </a>
+        <p className="text-sm text-muted-foreground">
+          Are you a salon owner?{" "}
+          <a href="/owner-sign-in" className="custom-underline">
+            Sign in here
+          </a>
+        </p>
       </div>
     </CardWrapper>
   );

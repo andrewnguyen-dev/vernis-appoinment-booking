@@ -30,14 +30,17 @@ export default async function OwnerSignUpPage() {
           <p className="font-medium">Contact us:</p>
           <p className="text-sm">
             Email:{" "}
-            <a href="mailto:hello@vernis.app" className="text-sm text-primary">
+            <a href="mailto:hello@vernis.app" className="custom-underline text-sm text-primary">
               hello@vernis.app
             </a>
           </p>
         </div>
-        <a href="/owner-sign-in" className="inline-block text-sm text-primary">
-          Already have an owner account? Sign in here
-        </a>
+        <p className=" text-sm text-primary">
+          Already have an owner account?{" "}
+          <a href="/owner-sign-in" className="custom-underline inline-block">
+            Sign in here
+          </a>
+        </p>
       </div>
     </div>
   );

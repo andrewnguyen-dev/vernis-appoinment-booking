@@ -111,7 +111,7 @@ const OwnerSignIn = () => {
         </form>
       </Form>
       <div className="mt-4 text-center">
-        <a href="/sign-in" className="text-sm text-muted-foreground">
+        <a href="/sign-in" className="custom-underline text-sm text-muted-foreground">
           Sign in as a regular customer instead
         </a>
       </div>
