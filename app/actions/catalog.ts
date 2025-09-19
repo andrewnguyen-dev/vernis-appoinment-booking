@@ -3,7 +3,7 @@
 import { z } from "zod";
 import prisma from "@/db";
 import { requireOwnerAuth } from "@/lib/auth-utils";
-import { getUserSalon } from "@/lib/user-utils";
+import { getOwnerSalonOrThrow } from "@/lib/user-utils";
 import { revalidatePath } from "next/cache";
 import {
   createCategorySchema,
@@ -21,15 +21,6 @@ import {
   type DeleteServiceData,
   type ReorderCategoriesData,
 } from "@/helpers/zod/catalog-schemas";
-
-// Helper function to get user's salon
-async function getOwnerSalonOrThrow(userId: string) {
-  const salon = await getUserSalon(userId, "OWNER");
-  if (!salon) {
-    throw new Error("No salon found for user");
-  }
-  return salon;
-}
 
 // Category Actions
 export async function createCategory(data: CreateCategoryData) {
@@ -218,7 +209,7 @@ export async function createService(data: CreateServiceData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = createServiceSchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Check if service with this name already exists
     const existingService = await prisma.service.findUnique({
@@ -295,7 +286,7 @@ export async function updateService(data: UpdateServiceData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = updateServiceSchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Verify service belongs to user's salon
     const existingService = await prisma.service.findFirst({
@@ -386,7 +377,7 @@ export async function deleteService(data: DeleteServiceData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = deleteServiceSchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Verify service belongs to user's salon
     const existingService = await prisma.service.findFirst({
@@ -448,7 +439,7 @@ export async function reorderCategories(data: ReorderCategoriesData) {
   try {
     const session = await requireOwnerAuth();
     const validatedData = reorderCategoriesSchema.parse(data);
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     // Verify all categories belong to user's salon
     const categoryIds = validatedData.categoryOrders.map(c => c.id);
@@ -503,7 +494,7 @@ export async function reorderCategories(data: ReorderCategoriesData) {
 export async function getCatalogData() {
   try {
     const session = await requireOwnerAuth();
-    const salon = await getUserSalon(session.user.id);
+    const salon = await getOwnerSalonOrThrow(session.user.id);
 
     const categories = await prisma.serviceCategory.findMany({
       where: { salonId: salon.id },

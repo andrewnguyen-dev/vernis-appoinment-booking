@@ -79,3 +79,11 @@ export async function getUserSalon(userId: string, role?: Role): Promise<Salon |
 
   return membership?.salon ?? null;
 }
+
+export async function getOwnerSalonOrThrow(userId: string): Promise<Salon> {
+  const salon = await getUserSalon(userId, "OWNER");
+  if (!salon) {
+    throw new Error("No salon found for user");
+  }
+  return salon;
+}

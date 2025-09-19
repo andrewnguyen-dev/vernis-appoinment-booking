@@ -3,21 +3,12 @@
 import { z } from "zod";
 import prisma from "@/db";
 import { requireOwnerAuth } from "@/lib/auth-utils";
-import { getUserSalon } from "@/lib/user-utils";
+import { getOwnerSalonOrThrow } from "@/lib/user-utils";
 import { revalidatePath } from "next/cache";
 import {
   updateSalonSchema,
   type UpdateSalonData,
 } from "@/helpers/zod/salon-schemas";
-
-// Helper function to get user's salon
-async function getOwnerSalonOrThrow(userId: string) {
-  const salon = await getUserSalon(userId, "OWNER");
-  if (!salon) {
-    throw new Error("No salon found for user");
-  }
-  return salon;
-}
 
 // Get salon settings
 export async function getSalonSettings() {
