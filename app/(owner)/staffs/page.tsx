@@ -12,7 +12,7 @@ export default async function StaffsPage() {
 
   if (!salon) {
     return (
-      <div className="space-y-6">
+      <div className="container mx-auto px-4 py-6 max-w-6xl space-y-6">
         <h1 className="text-3xl font-bold">Staff Management</h1>
         <p className="text-muted-foreground">No salon found. Please contact support.</p>
       </div>
@@ -23,7 +23,7 @@ export default async function StaffsPage() {
   const staff = await getSalonStaffWithOwnership(salon.id);
 
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto px-4 py-6 max-w-6xl space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Staff Management</h1>
         <p className="text-muted-foreground">

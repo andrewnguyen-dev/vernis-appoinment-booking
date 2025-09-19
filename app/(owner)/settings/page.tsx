@@ -6,11 +6,11 @@ export default async function SettingsPage() {
   await requireOwnerAuth();
 
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto px-4 py-6 max-w-6xl space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Salon Settings</h1>
         <p className="text-muted-foreground">
-          Manage your salon's basic information and configuration
+          Manage your salon&apos;s basic information and configuration
         </p>
       </div>
       

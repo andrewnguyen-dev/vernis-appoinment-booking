@@ -3,14 +3,13 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, AlertCircle, Save, Globe, Clock, Building, Image, Hash } from "lucide-react";
+import { Loader2, AlertCircle, Save, Globe, Clock, Building, Image as ImageIcon, Hash } from "lucide-react";
 import { updateSalonSchema, type UpdateSalonData } from "@/helpers/zod/salon-schemas";
 import { updateSalonSettings } from "@/app/actions/salon-settings";
 import { getAvailableTimeZones } from "@/lib/timezone";
@@ -195,14 +194,14 @@ export function SalonGeneralSettings({ salon, onUpdate }: SalonGeneralSettingsPr
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center gap-2">
-                    <Image className="h-4 w-4" />
+                    <ImageIcon className="h-4 w-4"/>
                     Logo URL
                   </FormLabel>
                   <FormControl>
                     <Input placeholder="https://example.com/logo.png" {...field} />
                   </FormControl>
                   <FormDescription>
-                    A direct URL to your salon's logo image (optional)
+                    A direct URL to your salon&apos;s logo image (optional)
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

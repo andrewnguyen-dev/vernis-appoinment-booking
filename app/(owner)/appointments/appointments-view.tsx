@@ -38,7 +38,7 @@ const AppointmentsView: React.FC<AppointmentsViewProps> = ({
   }
 
   return (
-    <div className="space-y-6 h-full flex flex-col">
+    <div className="container mx-auto px-4 py-6 max-w-6xl space-y-6 h-full flex flex-col">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold">Appointments</h1>
