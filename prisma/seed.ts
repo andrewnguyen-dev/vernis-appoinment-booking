@@ -39,7 +39,7 @@ async function createSalonBundle({
       timeZone,
       customDomain: customDomain ?? null,
       logoUrl: logoUrl ?? null,
-      capacity,
+      capacity: capacity ?? 4,
     },
   });
 

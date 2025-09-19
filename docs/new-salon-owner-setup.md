@@ -13,9 +13,7 @@ Before starting, collect the following information from the salon owner:
 - **Owner's Full Name** (e.g., "Sarah Johnson")
 - **Owner's Email Address** (e.g., "sarah@beautystudio.com")
 - **Salon Name** (e.g., "Sarah's Beauty Studio")
-- **Desired Salon URL Slug** (e.g., "sarahs-beauty-studio")
 - **Salon Location/Timezone** (e.g., "Australia/Sydney")
-- **Salon Capacity** (number of chairs/stations, e.g., 5)
 
 ## Database Setup Process
 
@@ -58,7 +56,7 @@ INSERT INTO "salon" (
   'Sarah''s Beauty Studio', -- Replace with actual salon name (note the escaped quote)
   'sarahs-beauty-studio', -- Replace with actual slug (must be unique)
   'Australia/Sydney', -- Replace with appropriate timezone
-  5, -- Replace with actual capacity
+  1, -- Default capacity
   false, -- Will be set to true after onboarding
   NOW(),
   NOW()
@@ -80,27 +78,6 @@ INSERT INTO "membership" (
   NOW(),
   NOW()
 );
-
--- 4. Create Staff Profile (Owners are automatically staff members)
-INSERT INTO "staff" (
-  id,
-  "salonId",
-  "userId",
-  color,
-  active,
-  notes,
-  "createdAt",
-  "updatedAt"
-) VALUES (
-  gen_random_uuid()::text,
-  (SELECT id FROM "salon" WHERE slug = 'sarahs-beauty-studio'), -- Get salon ID
-  (SELECT id FROM "user" WHERE email = 'sarah@beautystudio.com'), -- Get user ID
-  '#3B82F6', -- Default blue color
-  true,
-  'Salon Owner',
-  NOW(),
-  NOW()
-);
 ```
 
 ### Step 2: Verification Queries
@@ -117,11 +94,9 @@ SELECT
   s.capacity,
   s."hasCompletedOnboarding",
   m.role,
-  st.color as staff_color
 FROM "user" u
 JOIN "membership" m ON u.id = m."userId"
 JOIN "salon" s ON m."salonId" = s.id
-JOIN "staff" st ON u.id = st."userId" AND s.id = st."salonId"
 WHERE u.email = 'sarah@beautystudio.com'; -- Replace with actual email
 ```
 
