@@ -1,14 +1,11 @@
 "use server";
 
 import { z } from "zod";
-import prisma from "@/db";
 import { requireOwnerAuth } from "@/lib/auth-utils";
-import { getUserSalon } from "@/lib/user-utils";
-import {
-  ownerOnboardingSchema,
-  type OwnerOnboardingInput,
-} from "@/helpers/zod/onboarding-schemas";
+import { persistSalonSettings } from "@/lib/services/persist-salon-settings";
+import { SALON_SETTINGS_REVALIDATE_PATHS } from "@/lib/constants/salon-settings";
 import { revalidatePath } from "next/cache";
+import type { OwnerOnboardingInput } from "@/helpers/zod/onboarding-schemas";
 
 interface OwnerOnboardingResult {
   success: boolean;
@@ -19,76 +16,11 @@ interface OwnerOnboardingResult {
 export async function completeOwnerOnboarding(data: OwnerOnboardingInput): Promise<OwnerOnboardingResult> {
   try {
     const session = await requireOwnerAuth({ allowIncompleteOnboarding: true });
-    const salon = await getUserSalon(session.user.id, "OWNER");
+    await persistSalonSettings(session.user.id, data, { markOnboardingComplete: true });
 
-    if (!salon) {
-      return {
-        success: false,
-        error: "Salon not found for this owner.",
-      };
-    }
-
-    const validatedData = ownerOnboardingSchema.parse(data);
-
-    if (validatedData.slug !== salon.slug) {
-      const existingSalon = await prisma.salon.findUnique({
-        where: { slug: validatedData.slug },
-        select: { id: true },
-      });
-
-      if (existingSalon) {
-        return {
-          success: false,
-          error: "This salon URL is already taken. Please choose a different one.",
-          fieldErrors: {
-            slug: "This salon URL is already taken. Please choose a different one.",
-          },
-        };
-      }
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.salon.update({
-        where: { id: salon.id },
-        data: {
-          name: validatedData.name,
-          slug: validatedData.slug,
-          timeZone: validatedData.timeZone,
-          capacity: validatedData.capacity,
-          hasCompletedOnboarding: true,
-        },
-      });
-
-      for (const hours of validatedData.businessHours) {
-        await tx.businessHours.upsert({
-          where: {
-            salonId_dayOfWeek: {
-              salonId: salon.id,
-              dayOfWeek: hours.dayOfWeek,
-            },
-          },
-          update: {
-            openTime: hours.openTime,
-            closeTime: hours.closeTime,
-            isClosed: hours.isClosed,
-          },
-          create: {
-            salonId: salon.id,
-            dayOfWeek: hours.dayOfWeek,
-            openTime: hours.openTime,
-            closeTime: hours.closeTime,
-            isClosed: hours.isClosed,
-          },
-        });
-      }
+    SALON_SETTINGS_REVALIDATE_PATHS.forEach((path) => {
+      revalidatePath(path);
     });
-
-    revalidatePath("/dashboard");
-    revalidatePath("/appointments");
-    revalidatePath("/catalog");
-    revalidatePath("/settings");
-    revalidatePath("/staffs");
-    revalidatePath("/clients");
 
     return { success: true };
   } catch (error) {
@@ -104,6 +36,8 @@ export async function completeOwnerOnboarding(data: OwnerOnboardingInput): Promi
           slug: fieldErrors.slug?.[0],
           timeZone: fieldErrors.timeZone?.[0],
           capacity: fieldErrors.capacity?.[0],
+          logoUrl: fieldErrors.logoUrl?.[0],
+          customDomain: fieldErrors.customDomain?.[0],
           businessHours: fieldErrors.businessHours?.[0],
         },
       };

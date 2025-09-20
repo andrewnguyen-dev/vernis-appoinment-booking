@@ -4,28 +4,52 @@ import { z } from "zod";
 import prisma from "@/db";
 import { requireOwnerAuth } from "@/lib/auth-utils";
 import { getOwnerSalonOrThrow } from "@/lib/user-utils";
+import { buildSalonSettingsInitialValues } from "@/lib/salon-settings";
+import { persistSalonSettings } from "@/lib/services/persist-salon-settings";
+import { SALON_SETTINGS_REVALIDATE_PATHS } from "@/lib/constants/salon-settings";
 import { revalidatePath } from "next/cache";
-import {
-  updateSalonSchema,
-  type UpdateSalonData,
-} from "@/helpers/zod/salon-schemas";
+import { type DayOfWeekValue, type OwnerOnboardingInput } from "@/helpers/zod/onboarding-schemas";
+
+interface SalonSettingsActionResult {
+  success: boolean;
+  data?: { values: OwnerOnboardingInput };
+  message?: string;
+  error?: string;
+  fieldErrors?: Partial<Record<keyof OwnerOnboardingInput, string>>;
+}
 
 // Get salon settings
 export async function getSalonSettings() {
   try {
     const session = await requireOwnerAuth();
     const salon = await getOwnerSalonOrThrow(session.user.id);
+    const businessHours = await prisma.businessHours.findMany({
+      where: { salonId: salon.id },
+    });
 
-    return {
-      success: true,
-      data: {
+    const initialValues = buildSalonSettingsInitialValues(
+      {
         id: salon.id,
         name: salon.name,
         slug: salon.slug,
         timeZone: salon.timeZone,
-        logoUrl: salon.logoUrl,
         capacity: salon.capacity,
+        logoUrl: salon.logoUrl,
         customDomain: salon.customDomain,
+      },
+      businessHours.map((hours) => ({
+        dayOfWeek: hours.dayOfWeek as DayOfWeekValue,
+        openTime: hours.openTime,
+        closeTime: hours.closeTime,
+        isClosed: hours.isClosed,
+      })),
+    );
+
+    return {
+      success: true,
+      data: {
+        initialValues,
+        ownerName: session.user.name,
       },
     };
   } catch (error) {
@@ -38,70 +62,39 @@ export async function getSalonSettings() {
 }
 
 // Update salon settings
-export async function updateSalonSettings(data: UpdateSalonData) {
+export async function updateSalonSettings(data: OwnerOnboardingInput): Promise<SalonSettingsActionResult> {
   try {
     const session = await requireOwnerAuth();
-    const validatedData = updateSalonSchema.parse(data);
-    const salon = await getOwnerSalonOrThrow(session.user.id);
+    const result = await persistSalonSettings(session.user.id, data);
 
-    // Check if slug is unique (excluding current salon)
-    if (validatedData.slug !== salon.slug) {
-      const existingSalon = await prisma.salon.findUnique({
-        where: { slug: validatedData.slug },
-      });
-
-      if (existingSalon) {
-        return {
-          success: false,
-          error: "This salon URL is already taken. Please choose a different one.",
-        };
-      }
-    }
-
-    // Check if custom domain is unique (excluding current salon)
-    if (validatedData.customDomain && validatedData.customDomain !== salon.customDomain) {
-      const existingDomain = await prisma.salon.findUnique({
-        where: { customDomain: validatedData.customDomain },
-      });
-
-      if (existingDomain) {
-        return {
-          success: false,
-          error: "This custom domain is already in use. Please choose a different one.",
-        };
-      }
-    }
-
-    // Update the salon
-    const updatedSalon = await prisma.salon.update({
-      where: { id: salon.id },
-      data: {
-        name: validatedData.name,
-        slug: validatedData.slug,
-        timeZone: validatedData.timeZone,
-        logoUrl: validatedData.logoUrl || null,
-        capacity: validatedData.capacity,
-        customDomain: validatedData.customDomain || null,
-        updatedAt: new Date(),
-      },
+    SALON_SETTINGS_REVALIDATE_PATHS.forEach((path) => {
+      revalidatePath(path);
     });
-
-    revalidatePath("/settings");
-    revalidatePath("/dashboard");
 
     return {
       success: true,
-      data: updatedSalon,
+      data: { values: result.values },
       message: "Salon settings updated successfully!",
     };
   } catch (error) {
     console.error("Failed to update salon settings:", error);
-    
+
     if (error instanceof z.ZodError) {
+      const flattened = error.flatten();
+      const fieldErrors = flattened.fieldErrors as Partial<Record<keyof OwnerOnboardingInput, string[]>>;
+
       return {
         success: false,
-        error: "Invalid data provided",
-        details: error.issues,
+        error: "Please correct the highlighted errors.",
+        fieldErrors: {
+          name: fieldErrors.name?.[0],
+          slug: fieldErrors.slug?.[0],
+          timeZone: fieldErrors.timeZone?.[0],
+          capacity: fieldErrors.capacity?.[0],
+          logoUrl: fieldErrors.logoUrl?.[0],
+          customDomain: fieldErrors.customDomain?.[0],
+          businessHours: fieldErrors.businessHours?.[0],
+        },
       };
     }
 

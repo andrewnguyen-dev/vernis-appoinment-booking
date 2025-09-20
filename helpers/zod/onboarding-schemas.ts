@@ -39,6 +39,8 @@ export const ownerOnboardingSchema = z.object({
   slug: updateSalonSchema.shape.slug,
   timeZone: updateSalonSchema.shape.timeZone,
   capacity: updateSalonSchema.shape.capacity,
+  logoUrl: updateSalonSchema.shape.logoUrl,
+  customDomain: updateSalonSchema.shape.customDomain,
   businessHours: z
     .array(onboardingBusinessHourSchema)
     .length(7, "Business hours must include all days of the week"),

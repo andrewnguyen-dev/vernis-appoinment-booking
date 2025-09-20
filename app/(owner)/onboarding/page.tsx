@@ -2,58 +2,9 @@ import prisma from "@/db";
 import { OwnerOnboardingForm } from "@/components/onboarding/owner-onboarding-form";
 import { requireOwnerAuth } from "@/lib/auth-utils";
 import { getUserSalon } from "@/lib/user-utils";
-import {
-  dayOfWeekValues,
-  type DayOfWeekValue,
-  type OwnerOnboardingInput,
-} from "@/helpers/zod/onboarding-schemas";
+import { type DayOfWeekValue } from "@/helpers/zod/onboarding-schemas";
+import { buildSalonSettingsInitialValues } from "@/lib/salon-settings";
 import { redirect } from "next/navigation";
-
-const fallbackBusinessHours: Record<DayOfWeekValue, { openTime: string; closeTime: string; isClosed: boolean }> = {
-  MONDAY: { openTime: "09:00", closeTime: "17:00", isClosed: false },
-  TUESDAY: { openTime: "09:00", closeTime: "17:00", isClosed: false },
-  WEDNESDAY: { openTime: "09:00", closeTime: "17:00", isClosed: false },
-  THURSDAY: { openTime: "09:00", closeTime: "17:00", isClosed: false },
-  FRIDAY: { openTime: "09:00", closeTime: "17:00", isClosed: false },
-  SATURDAY: { openTime: "09:00", closeTime: "15:00", isClosed: false },
-  SUNDAY: { openTime: "10:00", closeTime: "16:00", isClosed: true },
-};
-
-function buildInitialValues(
-  salon: {
-    id: string;
-    name: string;
-    slug: string;
-    timeZone: string;
-    capacity: number;
-  },
-  existingHours: Array<{
-    dayOfWeek: DayOfWeekValue;
-    openTime: string;
-    closeTime: string;
-    isClosed: boolean;
-  }>,
-): OwnerOnboardingInput {
-  const hoursMap = new Map(existingHours.map((hours) => [hours.dayOfWeek, hours]));
-
-  return {
-    name: salon.name,
-    slug: salon.slug,
-    timeZone: salon.timeZone,
-    capacity: salon.capacity,
-    businessHours: dayOfWeekValues.map((day) => {
-      const saved = hoursMap.get(day);
-      const fallback = fallbackBusinessHours[day];
-
-      return {
-        dayOfWeek: day,
-        isClosed: saved?.isClosed ?? fallback.isClosed,
-        openTime: saved?.openTime ?? fallback.openTime,
-        closeTime: saved?.closeTime ?? fallback.closeTime,
-      };
-    }),
-  };
-}
 
 export default async function OwnerOnboardingPage() {
   const session = await requireOwnerAuth({ allowIncompleteOnboarding: true });
@@ -71,13 +22,15 @@ export default async function OwnerOnboardingPage() {
     where: { salonId: salon.id },
   });
 
-  const initialValues = buildInitialValues(
+  const initialValues = buildSalonSettingsInitialValues(
     {
       id: salon.id,
       name: salon.name,
       slug: salon.slug,
       timeZone: salon.timeZone,
       capacity: salon.capacity,
+      logoUrl: salon.logoUrl,
+      customDomain: salon.customDomain,
     },
     businessHours.map((hours) => ({
       dayOfWeek: hours.dayOfWeek as DayOfWeekValue,
