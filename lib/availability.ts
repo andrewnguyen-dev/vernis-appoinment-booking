@@ -105,15 +105,12 @@ async function getExistingAppointments(salonId: string, date: Date) {
 }
 
 // Check if a specific time slot conflicts with existing appointments considering salon capacity
-async function hasTimeConflict(
+function hasTimeConflict(
   proposedStart: Date,
   proposedEnd: Date,
   existingAppointments: { startsAt: Date; endsAt: Date }[],
-  salonId: string
-): Promise<boolean> {
-  // Get salon capacity
-  const capacity = await getSalonCapacity(salonId);
-  
+  capacity: number
+): boolean {
   // Create a list of all time points where appointments start or end
   const timePoints: { time: Date; type: 'start' | 'end' }[] = [];
   
@@ -151,7 +148,7 @@ async function hasTimeConflict(
       return true; // Conflict detected
     }
   }
-  
+
   return false; // No conflict
 }
 
@@ -187,10 +184,13 @@ export async function getAvailableTimeSlots({
   
   // Get existing appointments for this date
   const existingAppointments = await getExistingAppointments(salonId, targetDate);
-  
+
+  // Get salon capacity once to reuse across slot calculations
+  const capacity = await getSalonCapacity(salonId);
+
   // Check availability for each time slot
   const availableSlots: TimeSlot[] = [];
-  
+
   for (const timeSlot of allSlots) {
     // Create proposed appointment start/end times
     const [hours, minutes] = timeSlot.split(':').map(Number);
@@ -215,7 +215,7 @@ export async function getAvailableTimeSlots({
     }
     
     // Check for conflicts with existing appointments
-    const hasConflict = await hasTimeConflict(proposedStart, proposedEnd, existingAppointments, salonId);
+    const hasConflict = hasTimeConflict(proposedStart, proposedEnd, existingAppointments, capacity);
     
     availableSlots.push({
       time: timeSlot,
