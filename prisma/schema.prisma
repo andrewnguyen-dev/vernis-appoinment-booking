@@ -107,6 +107,12 @@ enum PaymentProvider {
   OTHER
 }
 
+enum DepositType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  AUTHORIZATION_ONLY
+}
+
 enum DayOfWeek {
   MONDAY
   TUESDAY
@@ -131,6 +137,13 @@ model Salon {
   
   // Onboarding completion status
   hasCompletedOnboarding Boolean @default(false)
+
+  // Stripe Connect Integration
+  stripeAccountId    String?     @unique // Stripe Connect account ID
+  depositType        DepositType @default(PERCENTAGE)
+  depositValue       Int         @default(2000) // 20% for percentage, or cents for fixed amount
+  depositDescription String      @default("Booking deposit")
+  requireDeposit     Boolean     @default(true)
 
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -305,20 +318,26 @@ model AppointmentItem {
 model Payment {
   id            String          @id @default(cuid())
   appointmentId String
-  amountCents   Int
+  amountCents   Int             // Amount charged (deposit or full payment)
+  totalAmountCents Int          // Total appointment amount for reference
+  isDeposit     Boolean         @default(false) // true if this is a deposit payment
   currency      String          @default("AUD")
   provider      PaymentProvider
-  providerRef   String? // e.g. Stripe PaymentIntent ID
+  providerRef   String?         // e.g. Stripe PaymentIntent ID
   status        PaymentStatus   @default(PENDING)
   capturedAt    DateTime?
   refundedAt    DateTime?
+  refundAmount  Int?            // Amount refunded in cents
+  failureReason String?         // Reason for payment failure
 
   appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([appointmentId])
   @@index([status])
+  @@index([providerRef]) // For webhook lookups
   @@map("payment")
 }
 
