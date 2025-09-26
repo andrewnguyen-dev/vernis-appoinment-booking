@@ -1,5 +1,6 @@
 import prisma from "@/db";
-import { OwnerOnboardingForm } from "@/components/onboarding/owner-onboarding-form";
+import { OnboardingWithStripeForm } from "@/components/onboarding/onboarding-with-stripe-form";
+import { completeOwnerOnboardingWithStripe } from "@/app/actions/owner-onboarding";
 import { requireOwnerAuth } from "@/lib/auth-utils";
 import { getUserSalon } from "@/lib/user-utils";
 import { type DayOfWeekValue } from "@/helpers/zod/onboarding-schemas";
@@ -49,7 +50,12 @@ export default async function OwnerOnboardingPage() {
         </p>
       </div>
 
-      <OwnerOnboardingForm initialValues={initialValues} ownerName={session.user.name} />
+      <OnboardingWithStripeForm 
+        initialValues={initialValues} 
+        stripeAccountId={salon.stripeAccountId}
+        ownerName={session.user.name}
+        onSubmit={completeOwnerOnboardingWithStripe}
+      />
     </div>
   );
 }

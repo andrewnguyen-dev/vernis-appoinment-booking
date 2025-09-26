@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 
 // Initialize Stripe client with API version
 export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-08-27.basil', // Use latest supported version
+  // Use the default API version supported by this version of stripe-node
   typescript: true,
   appInfo: {
     name: 'Vernis Appointment Booking',

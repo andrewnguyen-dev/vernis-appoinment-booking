@@ -1,11 +1,15 @@
 import SignOut from "@/components/auth/sign-out";
 import { requireOwnerAuth } from "@/lib/auth-utils";
+import { getOwnerSalonOrThrow } from "@/lib/user-utils";
+import { PaymentStatusWidget } from "@/components/dashboard/payment-status-widget";
+import { PaymentMetricsWidget } from "@/components/dashboard/payment-metrics-widget";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, DollarSign, Users, Clock } from "lucide-react";
 
 export default async function DashboardPage() {
   // This will redirect to /owner-sign-in if not authenticated or not an owner
   const session = await requireOwnerAuth();
+  const salon = await getOwnerSalonOrThrow(session.user.id);
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-6xl space-y-6">
@@ -67,7 +71,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Upcoming Appointments */}
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle>Upcoming Appointments</CardTitle>
@@ -99,6 +103,14 @@ export default async function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+
+        <div className="space-y-6">
+          {/* Payment Status Widget */}
+          <PaymentStatusWidget stripeAccountId={salon.stripeAccountId} />
+          
+          {/* Payment Metrics Widget */}
+          <PaymentMetricsWidget />
+        </div>
 
         <Card>
           <CardHeader>

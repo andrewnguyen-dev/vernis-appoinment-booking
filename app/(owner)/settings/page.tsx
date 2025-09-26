@@ -3,8 +3,10 @@ import { requireOwnerAuth } from "@/lib/auth-utils";
 import { getOwnerSalonOrThrow } from "@/lib/user-utils";
 import { buildSalonSettingsInitialValues } from "@/lib/salon-settings";
 import { SalonSettingsForm } from "@/components/salon/salon-settings-form";
+import { StripeConnectSetup } from "@/components/stripe/stripe-connect-setup";
 import { updateSalonSettings } from "@/app/actions/salon-settings";
 import { type DayOfWeekValue } from "@/helpers/zod/onboarding-schemas";
+import { Separator } from "@/components/ui/separator";
 
 export default async function SettingsPage() {
   const session = await requireOwnerAuth();
@@ -52,6 +54,20 @@ export default async function SettingsPage() {
           submittingLabel: "Saving...",
           successToast: "Salon settings updated successfully!",
         }}
+      />
+
+      <Separator />
+
+      {/* Stripe Connect Configuration */}
+      <StripeConnectSetup
+        initialValues={{
+          depositType: salon.depositType,
+          depositValue: salon.depositValue,
+          depositDescription: salon.depositDescription,
+          requireDeposit: salon.requireDeposit,
+        }}
+        stripeAccountId={salon.stripeAccountId}
+        showInOnboarding={false}
       />
     </div>
   );

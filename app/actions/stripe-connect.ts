@@ -1,7 +1,6 @@
 "use server";
 
 import { z } from "zod";
-import { redirect } from "next/navigation";
 import { requireOwnerAuth } from "@/lib/auth-utils";
 import { getUserSalon } from "@/lib/user-utils";
 import prisma from "@/db";
@@ -15,29 +14,41 @@ const stripeConnectSchema = z.object({
 
 /**
  * Generates a Stripe Connect authorization URL for salon owners to connect their Stripe account
+ * Returns the URL instead of redirecting to allow client-side handling
  */
-export async function createStripeConnectLink(formData: FormData) {
-  const session = await requireOwnerAuth();
-  const salon = await getUserSalon(session.user.id, "OWNER");
-  
-  if (!salon) {
-    throw new Error("Salon not found");
-  }
-
-  const rawData = {
-    refreshUrl: formData.get("refreshUrl") as string,
-    returnUrl: formData.get("returnUrl") as string,
-  };
-
-  const validatedData = stripeConnectSchema.parse(rawData);
-
+export async function createStripeConnectLink(formData: FormData): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
+    const session = await requireOwnerAuth();
+    const salon = await getUserSalon(session.user.id, "OWNER");
+    
+    if (!salon) {
+      return { success: false, error: "Salon not found" };
+    }
+
+    const rawData = {
+      refreshUrl: formData.get("refreshUrl") as string,
+      returnUrl: formData.get("returnUrl") as string,
+    };
+    console.log("🚀 ~ createStripeConnectLink ~ rawData:", rawData)
+
+    const validatedData = stripeConnectSchema.parse(rawData);
+    console.log("🚀 ~ createStripeConnectLink ~ validatedData:", validatedData)
+
+    // Check if Stripe is properly configured
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return { success: false, error: "Stripe is not properly configured. Missing secret key." };
+    }
+
     // Check if salon already has a Stripe account connected
     if (salon.stripeAccountId) {
+      console.log("🚀 ~ salon already has stripeAccountId:", salon.stripeAccountId)
       // If account exists, create login link instead
       const loginLink = await stripe.accounts.createLoginLink(salon.stripeAccountId);
-      redirect(loginLink.url);
+      console.log("🚀 ~ createStripeConnectLink ~ loginLink.url:", loginLink.url)
+      return { success: true, url: loginLink.url };
     }
+
+    console.log("🚀 ~ Creating new Stripe Express account for user:", session.user.email)
 
     // Create a new Stripe account for the salon
     const account = await stripe.accounts.create({
@@ -50,6 +61,8 @@ export async function createStripeConnectLink(formData: FormData) {
         user_id: session.user.id,
       },
     });
+
+    console.log("🚀 ~ Created Stripe account:", account.id)
 
     // Create account link for onboarding
     const accountLink = await stripe.accountLinks.create({
@@ -67,10 +80,43 @@ export async function createStripeConnectLink(formData: FormData) {
       },
     });
 
-    redirect(accountLink.url);
+    console.log("🚀 ~ createStripeConnectLink ~ accountLink.url:", accountLink.url)
+    return { success: true, url: accountLink.url };
   } catch (error) {
     console.error("Error creating Stripe Connect link:", error);
-    throw new Error("Failed to create Stripe Connect link. Please try again.");
+    
+    // Handle specific Stripe errors
+    if (error instanceof stripe.errors.StripeError) {
+      switch (error.type) {
+        case 'StripeAuthenticationError':
+          return { success: false, error: "Stripe authentication failed. Please check your API keys." };
+        case 'StripeRateLimitError':
+          return { success: false, error: "Too many requests. Please try again in a moment." };
+        case 'StripeInvalidRequestError':
+          console.error("Invalid request error:", error.message);
+          return { success: false, error: `Invalid request: ${error.message}` };
+        case 'StripeAPIError':
+          return { success: false, error: "Stripe API error occurred. Please try again." };
+        case 'StripeConnectionError':
+          return { success: false, error: "Connection error. Please check your internet connection." };
+        default:
+          console.error("Stripe error details:", { type: error.type, message: error.message, code: error.code });
+          return { success: false, error: `Stripe error: ${error.message}` };
+      }
+    }
+    
+    if (error instanceof z.ZodError) {
+      return { success: false, error: "Invalid URL parameters provided" };
+    }
+    
+    // Log the full error for debugging
+    console.error("Unexpected error details:", {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+    });
+    
+    return { success: false, error: "Failed to create Stripe Connect link. Please try again." };
   }
 }
 
@@ -114,25 +160,26 @@ export async function getStripeAccountStatus() {
 
 /**
  * Creates a Stripe Connect login link for salon owners to manage their account
+ * Returns the URL instead of redirecting to allow client-side handling
  */
-export async function createStripeLoginLink() {
-  const session = await requireOwnerAuth();
-  const salon = await getUserSalon(session.user.id, "OWNER");
-  
-  if (!salon) {
-    throw new Error("Salon not found");
-  }
-
-  if (!salon.stripeAccountId) {
-    throw new Error("No Stripe account connected");
-  }
-
+export async function createStripeLoginLink(): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
+    const session = await requireOwnerAuth();
+    const salon = await getUserSalon(session.user.id, "OWNER");
+    
+    if (!salon) {
+      return { success: false, error: "Salon not found" };
+    }
+
+    if (!salon.stripeAccountId) {
+      return { success: false, error: "No Stripe account connected" };
+    }
+
     const loginLink = await stripe.accounts.createLoginLink(salon.stripeAccountId);
-    redirect(loginLink.url);
+    return { success: true, url: loginLink.url };
   } catch (error) {
     console.error("Error creating Stripe login link:", error);
-    throw new Error("Failed to create Stripe login link. Please try again.");
+    return { success: false, error: "Failed to create Stripe login link. Please try again." };
   }
 }
 
