@@ -38,6 +38,7 @@ interface SalonSettingsFormResult {
   error?: string;
   message?: string;
   fieldErrors?: Partial<Record<keyof OwnerOnboardingInput, string | undefined>>;
+  data?: unknown;
 }
 
 interface CopyOverrides {
@@ -52,7 +53,7 @@ interface SalonSettingsFormProps {
   initialValues: OwnerOnboardingInput;
   ownerName?: string | null;
   onSubmit: (values: OwnerOnboardingInput) => Promise<SalonSettingsFormResult>;
-  onSuccess?: () => void;
+  onSuccess?: (result: SalonSettingsFormResult) => void;
   showBrandingFields?: boolean;
   copyOverrides?: CopyOverrides;
 }
@@ -131,7 +132,7 @@ export function SalonSettingsForm({
         toast.success(successToast ?? result.message ?? "Settings saved");
       }
 
-      onSuccess?.();
+      onSuccess?.(result);
       setIsSubmitting(false);
     } catch (error) {
       console.error("Failed to submit salon settings:", error);

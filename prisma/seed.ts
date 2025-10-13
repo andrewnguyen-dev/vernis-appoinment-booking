@@ -15,6 +15,17 @@ const at = (iso: string) => new Date(iso);
 // Add minutes to a Date
 const addMinutes = (d: Date, mins: number) => new Date(d.getTime() + mins * 60 * 1000);
 
+type StripeSeedConfig = {
+  stripeAccountId?: string | null;
+  stripeAccountStatus?: string | null;
+  stripeChargesEnabled?: boolean;
+  stripePayoutsEnabled?: boolean;
+  stripeOnboardedAt?: Date | string | null;
+  stripeRequirementsDue?: string[];
+  platformFeePercent?: number;
+  platformFeeMinCents?: number;
+};
+
 async function createSalonBundle({
   ownerId,
   name,
@@ -23,6 +34,7 @@ async function createSalonBundle({
   customDomain,
   logoUrl,
   capacity = 4,
+  stripe,
 }: {
   ownerId: string;
   name: string;
@@ -31,15 +43,27 @@ async function createSalonBundle({
   customDomain?: string | null;
   logoUrl?: string | null;
   capacity?: number | null;
+  stripe?: StripeSeedConfig;
 }) {
+  const resolvedSlug = slug || slugify(name);
+  const slugToken = resolvedSlug.replace(/[^a-z0-9]/g, '');
+
   const salon = await prisma.salon.create({
     data: {
       name,
-      slug: slug || slugify(name),
+      slug: resolvedSlug,
       timeZone,
       customDomain: customDomain ?? null,
       logoUrl: logoUrl ?? null,
       capacity: capacity ?? 4,
+      stripeAccountId: stripe?.stripeAccountId ?? null,
+      stripeAccountStatus: stripe?.stripeAccountStatus ?? null,
+      stripeChargesEnabled: stripe?.stripeChargesEnabled ?? false,
+      stripePayoutsEnabled: stripe?.stripePayoutsEnabled ?? false,
+      stripeOnboardedAt: stripe?.stripeOnboardedAt ? new Date(stripe.stripeOnboardedAt) : null,
+      stripeRequirementsDue: stripe?.stripeRequirementsDue ?? [],
+      platformFeePercent: stripe?.platformFeePercent ?? 10,
+      platformFeeMinCents: stripe?.platformFeeMinCents ?? 50,
     },
   });
 
@@ -193,6 +217,7 @@ async function createSalonBundle({
     services.find(s => s.name === 'Manicure')!,
   ];
   const appt1Duration = appt1Items.reduce((acc, s) => acc + s.durationMinutes, 0);
+  const appt1Total = appt1Items.reduce((acc, s) => acc + s.priceCents, 0);
   const end1 = addMinutes(start1, appt1Duration);
 
   const appt1 = await prisma.appointment.create({
@@ -223,15 +248,36 @@ async function createSalonBundle({
   );
 
   // Add a payment for appt1 (partial then captured)
+  const connectedAccountId = stripe?.stripeAccountId ?? null;
+  const platformFeePercent = stripe?.platformFeePercent ?? 10;
+  const platformFeeMinCents = stripe?.platformFeeMinCents ?? 50;
+  const basePlatformFeeAmount = Math.max(Math.round((appt1Total * platformFeePercent) / 100), platformFeeMinCents);
+  const useStripePayment = Boolean(connectedAccountId && (stripe?.stripeChargesEnabled ?? false));
+  const platformFeeAmount = useStripePayment ? basePlatformFeeAmount : null;
+  const stripeFeeAmount = useStripePayment ? Math.round(appt1Total * 0.029) + 30 : null;
+  const netAmount = useStripePayment && platformFeeAmount !== null && stripeFeeAmount !== null
+    ? Math.max(appt1Total - platformFeeAmount - stripeFeeAmount, 0)
+    : null;
+  const stripePaymentIntentId = `pi_seed_${slugToken}_001`;
+  const stripeSessionId = `cs_seed_${slugToken}_001`;
+  const stripeChargeId = `ch_seed_${slugToken}_001`;
+
   await prisma.payment.create({
     data: {
       appointmentId: appt1.id,
-      amountCents: appt1Items.reduce((acc, s) => acc + s.priceCents, 0),
-      provider: PaymentProvider.STRIPE,
-      providerRef: 'pi_demo_123',
+      amountCents: appt1Total,
+      provider: useStripePayment ? PaymentProvider.STRIPE : PaymentProvider.CASH,
+      providerRef: useStripePayment ? stripePaymentIntentId : null,
       status: PaymentStatus.PAID,
       capturedAt: new Date(),
       currency: 'AUD',
+      platformFeeAmount,
+      stripeSessionId: useStripePayment ? stripeSessionId : null,
+      stripePaymentIntentId: useStripePayment ? stripePaymentIntentId : null,
+      stripeChargeId: useStripePayment ? stripeChargeId : null,
+      stripeFeeAmount,
+      netAmount,
+      connectedAccountId: useStripePayment ? connectedAccountId : null,
     },
   });
 
@@ -335,6 +381,16 @@ async function main() {
     customDomain: 'luxelane.example.com',
     logoUrl: null,
     capacity: 6,
+    stripe: {
+      stripeAccountId: 'acct_seed_luxelane',
+      stripeAccountStatus: 'active',
+      stripeChargesEnabled: true,
+      stripePayoutsEnabled: true,
+      stripeOnboardedAt: '2025-01-15T02:30:00Z',
+      stripeRequirementsDue: [],
+      platformFeePercent: 12,
+      platformFeeMinCents: 95,
+    },
   });
 
   // Second owner and salon
@@ -355,6 +411,15 @@ async function main() {
     customDomain: null,
     logoUrl: null,
     capacity: 3,
+    stripe: {
+      stripeAccountId: 'acct_seed_harbourcuts',
+      stripeAccountStatus: 'requirements_due',
+      stripeChargesEnabled: false,
+      stripePayoutsEnabled: false,
+      stripeRequirementsDue: ['external_account', 'relationship.representative.address'],
+      platformFeePercent: 10,
+      platformFeeMinCents: 50,
+    },
   });
 
   // Third owner and salon
@@ -376,6 +441,16 @@ async function main() {
     customDomain: null,
     logoUrl: null,
     capacity: 4,
+    stripe: {
+      stripeAccountId: 'acct_seed_saigonstyle',
+      stripeAccountStatus: 'pending_verification',
+      stripeChargesEnabled: true,
+      stripePayoutsEnabled: false,
+      stripeOnboardedAt: '2025-02-10T09:00:00Z',
+      stripeRequirementsDue: ['verification.document'],
+      platformFeePercent: 15,
+      platformFeeMinCents: 120,
+    },
   });
 
   console.log('✅ Seed complete:', {

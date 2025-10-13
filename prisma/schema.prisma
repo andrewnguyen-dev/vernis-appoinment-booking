@@ -128,9 +128,21 @@ model Salon {
 
   // Required for concurrent bookings control
   capacity Int // e.g., number of chairs/rooms
-  
+
   // Onboarding completion status
   hasCompletedOnboarding Boolean @default(false)
+
+  // Stripe Connect integration
+  stripeAccountId       String?   @unique // Connected account ID (acct_...)
+  stripeAccountStatus   String? // onboarding status tracking
+  stripeChargesEnabled  Boolean   @default(false)
+  stripePayoutsEnabled  Boolean   @default(false)
+  stripeOnboardedAt     DateTime?
+  stripeRequirementsDue String[]  @default([]) // JSON array of missing requirements
+
+  // Application fee configuration (platform revenue)
+  platformFeePercent  Int @default(10) // 10% default
+  platformFeeMinCents Int @default(50) // $0.50 minimum
 
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -166,13 +178,13 @@ model Membership {
 
 // ── Staff Profile ─────────────────────────────────────────────────────
 model Staff {
-  id        String  @id @default(cuid())
-  salonId   String
-  userId    String
-  phone     String?  // Salon-specific phone (optional override)
-  color     String  @default("#3B82F6") // Default blue color
-  active    Boolean @default(true)
-  notes     String?
+  id      String  @id @default(cuid())
+  salonId String
+  userId  String
+  phone   String? // Salon-specific phone (optional override)
+  color   String  @default("#3B82F6") // Default blue color
+  active  Boolean @default(true)
+  notes   String?
 
   salon Salon @relation(fields: [salonId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -255,7 +267,7 @@ model Appointment {
   id              String            @id @default(cuid())
   salonId         String
   clientId        String
-  assignedStaffId String?           // optional staff assignment
+  assignedStaffId String? // optional staff assignment
   startsAt        DateTime
   endsAt          DateTime
   status          AppointmentStatus @default(BOOKED)
@@ -313,6 +325,18 @@ model Payment {
   capturedAt    DateTime?
   refundedAt    DateTime?
 
+  // Stripe-specific fields
+  stripeSessionId       String? @unique // Checkout Session ID
+  stripePaymentIntentId String? @unique // Payment Intent ID
+  stripeChargeId        String? // Charge ID for refunds
+  stripeFeeAmount       Int? // Stripe's fee (in cents)
+  platformFeeAmount     Int? // Platform's application fee (in cents)
+  netAmount             Int? // Amount salon receives (in cents)
+  stripeRefundId        String? // Refund identifier
+
+  // Link to connected account
+  connectedAccountId String? // The salon's Stripe account
+
   appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
@@ -342,13 +366,13 @@ model BusinessHours {
 }
 
 model SalonClosure {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   salonId     String
-  startDate   DateTime  // Start of closure (date only or datetime)
-  endDate     DateTime  // End of closure (date only or datetime)
-  reason      String?   // e.g., "Holiday", "Vacation", "Maintenance"
-  isRecurring Boolean   @default(false) // for annual holidays
-  
+  startDate   DateTime // Start of closure (date only or datetime)
+  endDate     DateTime // End of closure (date only or datetime)
+  reason      String? // e.g., "Holiday", "Vacation", "Maintenance"
+  isRecurring Boolean  @default(false) // for annual holidays
+
   salon Salon @relation(fields: [salonId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
