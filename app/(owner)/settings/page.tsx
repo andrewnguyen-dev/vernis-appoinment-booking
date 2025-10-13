@@ -5,6 +5,8 @@ import { buildSalonSettingsInitialValues } from "@/lib/salon-settings";
 import { SalonSettingsForm } from "@/components/salon/salon-settings-form";
 import { updateSalonSettings } from "@/app/actions/salon-settings";
 import { type DayOfWeekValue } from "@/helpers/zod/onboarding-schemas";
+import { generateOnboardingLink, syncAccountStatus } from "@/lib/services/stripe-connect-service";
+import { StripeSettings } from "@/components/salon/stripe-settings";
 
 export default async function SettingsPage() {
   const session = await requireOwnerAuth();
@@ -31,6 +33,19 @@ export default async function SettingsPage() {
     })),
   );
 
+  const accountSnapshot = salon.stripeAccountId ? await syncAccountStatus(salon.id) : null;
+  const onboardingUrl =
+    salon.stripeAccountId
+      ? await generateOnboardingLink(
+          salon.id,
+          "/owner/settings?stripe=refresh",
+          "/owner/settings?stripe=updated",
+        )
+      : null;
+  const stripeDashboardUrl = accountSnapshot
+    ? `https://dashboard.stripe.com/connect/accounts/${accountSnapshot.accountId}`
+    : null;
+
   return (
     <div className="container mx-auto w-full max-w-6xl space-y-6 px-4 py-6">
       <div>
@@ -39,6 +54,15 @@ export default async function SettingsPage() {
           Keep your booking details and business hours up to date for clients.
         </p>
       </div>
+
+      <StripeSettings
+        salonName={salon.name}
+        snapshot={accountSnapshot}
+        onboardingUrl={onboardingUrl}
+        refreshHref="/settings?stripe=refresh"
+        dashboardUrl={stripeDashboardUrl}
+        accountEmail={session.user.email ?? undefined}
+      />
 
       <SalonSettingsForm
         initialValues={initialValues}
