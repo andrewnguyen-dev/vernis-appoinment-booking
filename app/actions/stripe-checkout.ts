@@ -286,6 +286,16 @@ export async function finalizeBookingCheckoutSession(
       return { success: false, error: "Booking does not match this salon.", recoverable: false };
     }
 
+    const customerEmail = metadata.customer.email;
+
+    if (!customerEmail) {
+      return {
+        success: false,
+        error: "Booking details were missing a customer email. Please start the checkout again.",
+        recoverable: false,
+      };
+    }
+
     const bookingData: BookingFormData = {
       salonSlug,
       serviceIds: metadata.serviceIds,
@@ -296,7 +306,7 @@ export async function finalizeBookingCheckoutSession(
       customer: {
         firstName: metadata.customer.firstName,
         lastName: metadata.customer.lastName ?? undefined,
-        email: metadata.customer.email ?? undefined,
+        email: customerEmail,
         phone: metadata.customer.phone ?? undefined,
         notes: metadata.customer.notes ?? undefined,
       },
