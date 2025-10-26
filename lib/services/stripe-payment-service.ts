@@ -372,7 +372,11 @@ export async function handleSuccessfulPayment(
   }
 
   if (!charge) {
-    charge = paymentIntent.charges?.data?.[0] ?? null;
+    const chargesList = (paymentIntent as Stripe.PaymentIntent & {
+      charges?: Stripe.ApiList<Stripe.Charge>;
+    }).charges;
+
+    charge = chargesList?.data?.[0] ?? null;
   }
 
   if (!charge) {
