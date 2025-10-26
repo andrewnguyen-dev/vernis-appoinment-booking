@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "npx prisma db push && npx prisma generate && next build",
+    "build:app": "next build",
+    "typecheck": "tsc --noEmit",
     "start": "next start",
     "lint": "eslint"
   },

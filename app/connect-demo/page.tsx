@@ -6,7 +6,7 @@ import { assertConnectedAccountId, getStripeServerClient } from "@/lib/stripe";
 import { AccountSummary, ProductSummary, toAccountSummary } from "@/lib/stripe-connect";
 
 interface ConnectDemoPageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /**
@@ -48,12 +48,13 @@ async function fetchProductsForAccount(accountId: string): Promise<{ products: P
 }
 
 export default async function ConnectDemoPage({ searchParams }: ConnectDemoPageProps) {
-  const accountIdParam = typeof searchParams?.accountId === "string" ? searchParams?.accountId : undefined;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const accountIdParam = typeof resolvedSearchParams.accountId === "string" ? resolvedSearchParams.accountId : undefined;
   const accountResult = accountIdParam ? await fetchAccountSummary(accountIdParam) : { summary: null };
   const productResult = accountIdParam ? await fetchProductsForAccount(accountIdParam) : { products: [] };
   const { summary: accountSummary, error: accountError } = accountResult;
   const { products, error: productError } = productResult;
-  const onboarded = searchParams?.onboarded === "true";
+  const onboarded = resolvedSearchParams.onboarded === "true";
 
   return (
     <div className="space-y-12">
