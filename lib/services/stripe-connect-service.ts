@@ -37,12 +37,13 @@ interface SalonStripeSelection {
 function mapAccountToSnapshot(account: Stripe.Account): StripeAccountSnapshot {
   const chargesEnabled = account.charges_enabled ?? false;
   const payoutsEnabled = account.payouts_enabled ?? false;
-  const requirements = account.requirements ?? {};
-  const currentlyDue = requirements.currently_due ?? [];
+  const requirements = account.requirements;
+  const currentlyDue = requirements?.currently_due ?? [];
+  const disabledReason = requirements?.disabled_reason ?? null;
   const status: StripeAccountStatusValue =
     chargesEnabled && payoutsEnabled && currentlyDue.length === 0
       ? "active"
-      : requirements.disabled_reason
+      : disabledReason
         ? "restricted"
         : "pending";
 
@@ -55,10 +56,10 @@ function mapAccountToSnapshot(account: Stripe.Account): StripeAccountSnapshot {
     status,
     requirements: {
       currentlyDue,
-      eventuallyDue: requirements.eventually_due ?? [],
-      pastDue: requirements.past_due ?? [],
-      pendingVerification: requirements.pending_verification ?? [],
-      disabledReason: requirements.disabled_reason ?? null,
+      eventuallyDue: requirements?.eventually_due ?? [],
+      pastDue: requirements?.past_due ?? [],
+      pendingVerification: requirements?.pending_verification ?? [],
+      disabledReason,
     },
   };
 }
