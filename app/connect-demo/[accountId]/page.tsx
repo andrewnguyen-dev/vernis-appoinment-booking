@@ -6,8 +6,8 @@ import { assertConnectedAccountId } from "@/lib/stripe";
 import { CheckoutSessionSummary, ProductSummary } from "@/lib/stripe-connect";
 
 interface StorefrontPageProps {
-  params: { accountId: string };
-  searchParams?: Record<string, string | string[] | undefined>;
+  params: Promise<{ accountId: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /**
@@ -47,7 +47,8 @@ async function fetchSessionSummary(accountId: string, sessionId: string): Promis
 }
 
 export default async function StorefrontPage({ params, searchParams }: StorefrontPageProps) {
-  const accountId = decodeURIComponent(params.accountId);
+  const { accountId: rawAccountId } = await params;
+  const accountId = decodeURIComponent(rawAccountId);
 
   try {
     assertConnectedAccountId(accountId);
@@ -68,7 +69,11 @@ export default async function StorefrontPage({ params, searchParams }: Storefron
   }
 
   const { products, error: productError } = await fetchProducts(accountId);
-  const sessionId = typeof searchParams?.session_id === "string" ? searchParams?.session_id : undefined;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const sessionId =
+    resolvedSearchParams && typeof resolvedSearchParams.session_id === "string"
+      ? resolvedSearchParams.session_id
+      : undefined;
   const sessionResult = sessionId ? await fetchSessionSummary(accountId, sessionId) : { summary: null };
   const { summary: session, error: sessionError } = sessionResult;
 
