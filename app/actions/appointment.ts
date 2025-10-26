@@ -6,197 +6,220 @@ import { getSalonBySlug } from "@/lib/tenancy";
 import { fromZonedTime } from "date-fns-tz";
 import { revalidatePath } from "next/cache";
 import { isTimeSlotAvailable } from "@/lib/availability";
+import type { Appointment, Client, Service } from "@prisma/client";
+import { bookingFormSchema, type BookingFormData } from "@/helpers/zod/booking-schema";
 
-// Validation schema for booking data
-const BookingSchema = z.object({
-  salonSlug: z.string().min(1),
-  serviceIds: z.array(z.string()).min(1, "At least one service must be selected"),
-  date: z.string(),
-  time: z.string(),
-  customer: z.object({
-    firstName: z.string().min(1, "First name is required"),
-    lastName: z.string().optional(),
-    email: z.string().email("Invalid email address"),
-    phone: z.string().optional(),
-    notes: z.string().optional(),
-  }),
-  totalDuration: z.number().positive(),
-  totalPrice: z.number().positive(),
-});
+interface CreateAppointmentOptions {
+  skipAvailabilityCheck?: boolean;
+  revalidate?: boolean;
+}
 
-export type BookingFormData = z.infer<typeof BookingSchema>;
+interface AppointmentCreationContext {
+  salonId: string;
+  salonSlug: string;
+  salonTimeZone: string;
+  services: Array<Service & { category: { name: string } | null }>;
+  appointmentDate: Date;
+  appointmentEndTime: Date;
+  totalDuration: number;
+  totalPrice: number;
+}
 
-export async function createAppointment(data: BookingFormData) {
-  try {
-    // Validate input data
-    const validatedData = BookingSchema.parse(data);
-    
-    // Get salon
-    const salon = await getSalonBySlug(validatedData.salonSlug);
-    if (!salon) {
-      return {
-        success: false,
-        error: "Salon not found",
-      };
-    }
+interface AppointmentCreationResult {
+  appointment: Appointment & { items: Array<{ id: string; serviceName: string; priceCents: number; durationMinutes: number; sortOrder: number }> };
+  client: Client;
+  services: Array<Service & { category: { name: string } | null }>;
+  context: AppointmentCreationContext;
+}
 
-    // Get services and validate they belong to the salon
-    const services = await prisma.service.findMany({
+async function prepareAppointmentContext(validatedData: BookingFormData): Promise<AppointmentCreationContext | null> {
+  const salon = await getSalonBySlug(validatedData.salonSlug);
+  if (!salon) {
+    return null;
+  }
+
+  const services = await prisma.service.findMany({
+    where: {
+      id: { in: validatedData.serviceIds },
+      salonId: salon.id,
+      active: true,
+    },
+    include: {
+      category: true,
+    },
+  });
+
+  if (services.length !== validatedData.serviceIds.length) {
+    throw new Error("One or more selected services are invalid");
+  }
+
+  const totalDuration = services.reduce((sum, service) => sum + service.durationMinutes, 0);
+  const totalPrice = services.reduce((sum, service) => sum + service.priceCents, 0);
+
+  if (totalDuration !== validatedData.totalDuration || totalPrice !== validatedData.totalPrice) {
+    throw new Error("Price or duration mismatch. Please refresh and try again.");
+  }
+
+  const localDateTime = `${validatedData.date}T${validatedData.time}`;
+  const appointmentDate = fromZonedTime(localDateTime, salon.timeZone);
+  const appointmentEndTime = new Date(appointmentDate.getTime() + totalDuration * 60000);
+
+  return {
+    salonId: salon.id,
+    salonSlug: salon.slug,
+    salonTimeZone: salon.timeZone,
+    services,
+    appointmentDate,
+    appointmentEndTime,
+    totalDuration,
+    totalPrice,
+  };
+}
+
+async function ensureClient(
+  salonId: string,
+  booking: BookingFormData
+): Promise<Client> {
+  const customer = booking.customer;
+
+  if (customer.email) {
+    const existingClient = await prisma.client.findFirst({
       where: {
-        id: { in: validatedData.serviceIds },
-        salonId: salon.id,
-        active: true,
-      },
-      include: {
-        category: true,
+        salonId,
+        email: customer.email,
       },
     });
 
-    if (services.length !== validatedData.serviceIds.length) {
-      return {
-        success: false,
-        error: "One or more selected services are invalid",
-      };
+    if (existingClient) {
+      return prisma.client.update({
+        where: { id: existingClient.id },
+        data: {
+          firstName: customer.firstName,
+          lastName: customer.lastName || existingClient.lastName,
+          phone: customer.phone || existingClient.phone,
+          notes: customer.notes || existingClient.notes,
+        },
+      });
     }
+  }
 
-    // Calculate actual total duration and price from database
-    const actualTotalDuration = services.reduce((sum, service) => sum + service.durationMinutes, 0);
-    const actualTotalPrice = services.reduce((sum, service) => sum + service.priceCents, 0);
+  return prisma.client.create({
+    data: {
+      salonId,
+      firstName: customer.firstName,
+      lastName: customer.lastName || null,
+      email: customer.email || null,
+      phone: customer.phone || null,
+      notes: customer.notes || null,
+    },
+  });
+}
 
-    // Validate totals match what was sent from frontend
-    if (actualTotalDuration !== validatedData.totalDuration || actualTotalPrice !== validatedData.totalPrice) {
-      return {
-        success: false,
-        error: "Price or duration mismatch. Please refresh and try again.",
-      };
-    }
+export async function createAppointmentRecord(
+  data: BookingFormData,
+  options: CreateAppointmentOptions = {}
+): Promise<AppointmentCreationResult> {
+  const validatedData = bookingFormSchema.parse(data);
+  const context = await prepareAppointmentContext(validatedData);
 
-    // Parse appointment start time in the salon's timezone
-    // Create the date in the salon's timezone and convert to UTC for database storage
-    const localDateTime = `${validatedData.date}T${validatedData.time}`;
-    const appointmentDate = fromZonedTime(localDateTime, salon.timeZone);
-    const appointmentEndTime = new Date(appointmentDate.getTime() + actualTotalDuration * 60000);
+  if (!context) {
+    throw new Error("Salon not found");
+  }
 
-    // Check if the time slot is still available considering salon capacity
+  if (!options.skipAvailabilityCheck) {
     const availabilityCheck = await isTimeSlotAvailable(
-      salon.id,
+      context.salonId,
       validatedData.date,
       validatedData.time,
-      actualTotalDuration
-      // No excluded appointments for new bookings
+      context.totalDuration,
     );
 
     if (!availabilityCheck.available) {
       const capacityInfo = availabilityCheck.capacityInfo;
-      const capacityMessage = capacityInfo 
+      const capacityMessage = capacityInfo
         ? ` (${capacityInfo.used}/${capacityInfo.total} slots filled)`
         : "";
-      
-      return {
-        success: false,
-        error: `This time slot is no longer available${capacityMessage}. Please select a different time.`,
-      };
+
+      throw new Error(`This time slot is no longer available${capacityMessage}. Please select a different time.`);
     }
+  }
 
-    // Create or find client
-    let client = null;
-    if (validatedData.customer.email) {
-      client = await prisma.client.findFirst({
-        where: {
-          salonId: salon.id,
-          email: validatedData.customer.email,
-        },
-      });
-    }
+  const client = await ensureClient(context.salonId, validatedData);
 
-    if (!client) {
-      client = await prisma.client.create({
-        data: {
-          salonId: salon.id,
-          firstName: validatedData.customer.firstName,
-          lastName: validatedData.customer.lastName || null,
-          email: validatedData.customer.email || null,
-          phone: validatedData.customer.phone || null,
-          notes: validatedData.customer.notes || null,
-        },
-      });
-    } else {
-      // Update existing client with new information
-      client = await prisma.client.update({
-        where: { id: client.id },
-        data: {
-          firstName: validatedData.customer.firstName,
-          lastName: validatedData.customer.lastName || client.lastName,
-          phone: validatedData.customer.phone || client.phone,
-          notes: validatedData.customer.notes || client.notes,
-        },
-      });
-    }
-
-    // Create appointment with transaction
-    const appointment = await prisma.$transaction(async (tx) => {
-      // Create the appointment
-      const newAppointment = await tx.appointment.create({
-        data: {
-          salonId: salon.id,
-          clientId: client.id,
-          startsAt: appointmentDate,
-          endsAt: appointmentEndTime,
-          status: "BOOKED",
-          notes: validatedData.customer.notes || null,
-        },
-      });
-
-      // Create appointment items for each service
-      const appointmentItems = await Promise.all(
-        services.map((service, index) =>
-          tx.appointmentItem.create({
-            data: {
-              appointmentId: newAppointment.id,
-              serviceId: service.id,
-              serviceName: service.name,
-              priceCents: service.priceCents,
-              durationMinutes: service.durationMinutes,
-              sortOrder: index,
-            },
-          })
-        )
-      );
-
-      return { ...newAppointment, items: appointmentItems };
+  const appointment = await prisma.$transaction(async (tx) => {
+    const newAppointment = await tx.appointment.create({
+      data: {
+        salonId: context.salonId,
+        clientId: client.id,
+        startsAt: context.appointmentDate,
+        endsAt: context.appointmentEndTime,
+        status: "BOOKED",
+        notes: validatedData.customer.notes || null,
+      },
     });
 
-    // Revalidate the availability cache
+    const items = await Promise.all(
+      context.services.map((service, index) =>
+        tx.appointmentItem.create({
+          data: {
+            appointmentId: newAppointment.id,
+            serviceId: service.id,
+            serviceName: service.name,
+            priceCents: service.priceCents,
+            durationMinutes: service.durationMinutes,
+            sortOrder: index,
+          },
+        }),
+      ),
+    );
+
+    return { ...newAppointment, items };
+  });
+
+  if (options.revalidate ?? true) {
     revalidatePath(`/${validatedData.salonSlug}/book`);
+  }
+
+  return {
+    appointment,
+    client,
+    services: context.services,
+    context,
+  };
+}
+
+export async function createAppointment(data: BookingFormData) {
+  try {
+    const result = await createAppointmentRecord(data);
 
     return {
       success: true,
       data: {
-        appointmentId: appointment.id,
-        startsAt: appointment.startsAt,
-        endsAt: appointment.endsAt,
+        appointmentId: result.appointment.id,
+        startsAt: result.appointment.startsAt,
+        endsAt: result.appointment.endsAt,
         client: {
-          firstName: client.firstName,
-          lastName: client.lastName,
-          email: client.email,
+          firstName: result.client.firstName,
+          lastName: result.client.lastName,
+          email: result.client.email,
         },
-        services: services.map(s => s.name),
-        totalPrice: actualTotalPrice,
+        services: result.services.map((service) => service.name),
+        totalPrice: result.context.totalPrice,
       },
     };
   } catch (error) {
     console.error("Error creating appointment:", error);
-    
+
     if (error instanceof z.ZodError) {
       return {
         success: false,
         error: "Invalid form data: " + error.issues.map((issue) => issue.message).join(", "),
       };
     }
-    
+
     return {
       success: false,
-      error: "Failed to create appointment. Please try again.",
+      error: error instanceof Error ? error.message : "Failed to create appointment. Please try again.",
     };
   }
 }

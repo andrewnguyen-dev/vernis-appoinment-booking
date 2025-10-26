@@ -4,7 +4,19 @@ import prisma from "@/db";
 export async function getSalonBySlug(slug: string) {
   return prisma.salon.findUnique({
     where: { slug },
-    select: { id: true, name: true, timeZone: true, slug: true, logoUrl: true },
+    select: {
+      id: true,
+      name: true,
+      timeZone: true,
+      slug: true,
+      logoUrl: true,
+      stripeAccountId: true,
+      stripeChargesEnabled: true,
+      stripePayoutsEnabled: true,
+      stripeRequirementsDue: true,
+      platformFeePercent: true,
+      platformFeeMinCents: true,
+    },
   });
 }
 

@@ -33,3 +33,16 @@ export function ensureAbsoluteStripeUrl(urlOrPath: string, baseUrl?: string): st
     return `${resolvedBaseUrl}${normalized}`;
   }
 }
+
+export function calculatePlatformFee(
+  amountCents: number,
+  config: { platformFeePercent: number; platformFeeMinCents: number }
+): number {
+  if (amountCents <= 0) {
+    return 0;
+  }
+
+  const percentFee = Math.round((amountCents * config.platformFeePercent) / 100);
+  const fee = Math.max(percentFee, config.platformFeeMinCents);
+  return Math.min(fee, amountCents);
+}

@@ -6,7 +6,7 @@ import Stripe from "stripe";
 import prisma from "@/db";
 import { getStripeServerClient } from "@/lib/stripe";
 import { isAccountReadyForPayments } from "@/lib/services/stripe-connect-service";
-import { ensureAbsoluteStripeUrl, resolveStripePlatformBaseUrl } from "@/lib/services/stripe-utils";
+import { calculatePlatformFee, ensureAbsoluteStripeUrl, resolveStripePlatformBaseUrl } from "@/lib/services/stripe-utils";
 
 export interface CheckoutSessionResult {
   sessionId: string;
@@ -18,6 +18,7 @@ export interface CheckoutSessionResult {
 
 export interface PaymentProcessingResult {
   paymentId: string;
+  appointmentId: string;
   status: PaymentStatus;
   amountCents: number;
   stripeFeeAmount: number | null;
@@ -26,6 +27,7 @@ export interface PaymentProcessingResult {
   capturedAt: Date | null;
   stripePaymentIntentId?: string | null;
   stripeChargeId?: string | null;
+  created?: boolean;
 }
 
 export interface PaymentRefundResult {
@@ -89,19 +91,6 @@ function getDefaultSuccessUrl(baseUrl: string, salonSlug: string): string {
 
 function getDefaultCancelUrl(baseUrl: string, salonSlug: string): string {
   return `${baseUrl}/${encodeURIComponent(salonSlug)}/book?checkout=cancelled`;
-}
-
-export function calculatePlatformFee(
-  amountCents: number,
-  config: { platformFeePercent: number; platformFeeMinCents: number }
-): number {
-  if (amountCents <= 0) {
-    return 0;
-  }
-
-  const percentFee = Math.round((amountCents * config.platformFeePercent) / 100);
-  const fee = Math.max(percentFee, config.platformFeeMinCents);
-  return Math.min(fee, amountCents);
 }
 
 async function getAppointmentForCheckout(
@@ -302,7 +291,17 @@ export async function createAppointmentCheckoutSession(
   };
 }
 
-export async function handleSuccessfulPayment(sessionId: string): Promise<PaymentProcessingResult> {
+interface HandlePaymentOptions {
+  appointmentId?: string;
+  stripeAccountId?: string;
+  salonId?: string;
+  expectedAmountCents?: number;
+}
+
+export async function handleSuccessfulPayment(
+  sessionId: string,
+  options: HandlePaymentOptions = {}
+): Promise<PaymentProcessingResult> {
   const payment = await prisma.payment.findFirst({
     where: { stripeSessionId: sessionId },
     include: {
@@ -319,11 +318,8 @@ export async function handleSuccessfulPayment(sessionId: string): Promise<Paymen
     },
   });
 
-  if (!payment || !payment.appointment) {
-    throw new Error("Payment record not found for the supplied session id.");
-  }
-
-  const stripeAccountId = payment.connectedAccountId ?? payment.appointment.salon.stripeAccountId;
+  const existingAppointment = payment?.appointment ?? null;
+  const stripeAccountId = options.stripeAccountId ?? payment?.connectedAccountId ?? existingAppointment?.salon.stripeAccountId;
 
   if (!stripeAccountId) {
     throw new Error("Connected account information is missing for this payment.");
@@ -338,7 +334,7 @@ export async function handleSuccessfulPayment(sessionId: string): Promise<Paymen
     },
     {
       stripeAccount: stripeAccountId,
-    }
+    },
   );
 
   const paymentIntentId =
@@ -353,17 +349,36 @@ export async function handleSuccessfulPayment(sessionId: string): Promise<Paymen
   const paymentIntent = await stripe.paymentIntents.retrieve(
     paymentIntentId,
     {
-      expand: ["charges.data.balance_transaction"],
+      expand: ["latest_charge.balance_transaction", "charges.data.balance_transaction"],
     },
     {
       stripeAccount: stripeAccountId,
     }
   );
 
-  const charge = paymentIntent.charges.data[0];
+  let charge: Stripe.Charge | null = null;
+
+  if (paymentIntent.latest_charge) {
+    charge =
+      typeof paymentIntent.latest_charge === "string"
+        ? await stripe.charges.retrieve(
+            paymentIntent.latest_charge,
+            {
+              expand: ["balance_transaction"],
+            },
+            { stripeAccount: stripeAccountId }
+          )
+        : paymentIntent.latest_charge;
+  }
 
   if (!charge) {
-    throw new Error("No charge was found for the supplied payment intent.");
+    charge = paymentIntent.charges?.data?.[0] ?? null;
+  }
+
+  if (!charge) {
+    throw new Error(
+      `No charge was found for the supplied payment intent (${paymentIntent.id}). The payment may still be processing.`
+    );
   }
 
   const balanceTx = charge.balance_transaction;
@@ -386,7 +401,10 @@ export async function handleSuccessfulPayment(sessionId: string): Promise<Paymen
   }
 
   const platformFeeAmount =
-    charge.application_fee_amount ?? paymentIntent.application_fee_amount ?? payment.platformFeeAmount ?? null;
+    charge.application_fee_amount ??
+    paymentIntent.application_fee_amount ??
+    payment?.platformFeeAmount ??
+    null;
 
   let statusUpdate: PaymentStatus = PaymentStatus.PAID;
 
@@ -402,6 +420,55 @@ export async function handleSuccessfulPayment(sessionId: string): Promise<Paymen
 
   const capturedAt =
     statusUpdate === PaymentStatus.PAID && charge.created ? new Date(charge.created * 1000) : null;
+
+  const amountCents =
+    session.amount_total ??
+    paymentIntent.amount_received ??
+    paymentIntent.amount ??
+    options.expectedAmountCents ??
+    0;
+
+  if (!payment) {
+    const appointmentId = options.appointmentId;
+    const salonId = options.salonId ?? existingAppointment?.salonId;
+
+    if (!appointmentId || !salonId) {
+      throw new Error("Appointment context is required to record payment.");
+    }
+
+    const createdPayment = await prisma.payment.create({
+      data: {
+        appointmentId,
+        amountCents,
+        currency: session.currency?.toUpperCase() ?? "AUD",
+        provider: PaymentProvider.STRIPE,
+        status: statusUpdate,
+        providerRef: paymentIntent.id,
+        stripeSessionId: session.id,
+        stripePaymentIntentId: paymentIntent.id,
+        stripeChargeId: charge.id,
+        stripeFeeAmount,
+        platformFeeAmount,
+        netAmount,
+        capturedAt,
+        connectedAccountId: stripeAccountId,
+      },
+    });
+
+    return {
+      paymentId: createdPayment.id,
+      appointmentId,
+      status: createdPayment.status,
+      amountCents: createdPayment.amountCents,
+      stripeFeeAmount,
+      platformFeeAmount,
+      netAmount,
+      capturedAt,
+      stripePaymentIntentId: createdPayment.stripePaymentIntentId,
+      stripeChargeId: createdPayment.stripeChargeId,
+      created: true,
+    };
+  }
 
   const updatedPayment = await prisma.payment.update({
     where: { id: payment.id },
@@ -420,6 +487,7 @@ export async function handleSuccessfulPayment(sessionId: string): Promise<Paymen
 
   return {
     paymentId: updatedPayment.id,
+    appointmentId: updatedPayment.appointmentId,
     status: updatedPayment.status,
     amountCents: updatedPayment.amountCents,
     stripeFeeAmount,

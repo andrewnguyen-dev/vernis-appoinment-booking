@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -9,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AvailabilityCalendar } from "@/components/availability-calendar";
 import { formatTimezone, getCurrentTimeInTimezone } from "@/lib/timezone";
-import { createAppointment, type BookingFormData } from "@/app/actions/appointment";
+import { type BookingFormData } from "@/helpers/zod/booking-schema";
+import { createBookingCheckoutSession } from "@/app/actions/stripe-checkout";
 import { formatInTimeZone } from "date-fns-tz";
 import toast from "react-hot-toast";
 
@@ -42,7 +42,6 @@ type BookingFormProps = {
 type BookingStep = "services" | "datetime" | "details";
 
 export function BookingForm({ salon, categories }: BookingFormProps) {
-  const router = useRouter();
   const [currentStep, setCurrentStep] = useState<BookingStep>("services");
   const [selectedServices, setSelectedServices] = useState<Set<string>>(new Set());
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -141,21 +140,11 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
         selectedDateLocal: selectedDate.toLocaleDateString(),
       });
 
-      const result = await createAppointment(bookingData);
+      const result = await createBookingCheckoutSession(salon.slug, bookingData);
 
-      if (result.success) {
-        // Redirect to confirmation page with appointment details
-        const params = new URLSearchParams({
-          appointmentId: result.data?.appointmentId || '',
-          clientName: `${customerDetails.firstName} ${customerDetails.lastName || ''}`.trim(),
-          date: dateStr,
-          time: selectedTime,
-          services: encodeURIComponent(selectedServiceData.map(s => s.name).join(", ")),
-          duration: totalDuration.toString(),
-          total: totalPrice.toString(),
-        });
-        
-        router.push(`/${salon.slug}/book/confirmation?${params.toString()}`);
+      if (result.success && result.sessionUrl) {
+        window.location.href = result.sessionUrl;
+        return;
       } else {
         toast.error(result.error || "Failed to book appointment");
       }
