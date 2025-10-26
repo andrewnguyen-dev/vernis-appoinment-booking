@@ -18,7 +18,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 interface PaymentSetupPageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 function formatStatusLabel(status: string): string {
@@ -109,8 +109,9 @@ export default async function PaymentSetupPage({ searchParams }: PaymentSetupPag
     });
   }
 
+  const resolvedSearchParams = searchParams ? await searchParams : {};
   const onboardingUrl = await generateOnboardingLink(salon.id);
-  const onboardedReturn = searchParams?.onboarded === "1";
+  const onboardedReturn = resolvedSearchParams?.onboarded === "1";
 
   const requirements = snapshot.requirements;
   const hasOpenRequirements =
