@@ -274,6 +274,8 @@ New file: `app/api/webhooks/stripe/route.ts`
 ### **6.2 Webhook Handler Service**
 New file: `lib/services/stripe-webhook-handler.ts`
 
+**Environment:** add `STRIPE_WEBHOOK_SECRET` with the signing secret from your Stripe dashboard. The route expects raw request bodies and verifies the signature before dispatching events.
+
 ```typescript
 export async function handleCheckoutSessionCompleted(session) {
   // Extract booking data from metadata
@@ -310,7 +312,6 @@ Update [`app/(owner)/dashboard/page.tsx`](app/(owner)/dashboard/page.tsx ):
 - Payment success rate
 
 ### **7.2 Create Payments Management Page**
-New page: [`app/(auth)/owner-sign-up/page.tsx`](app/(auth)/owner-sign-up/page.tsx )
 
 **Features:**
 - List all payments with filters (date, status, amount)
