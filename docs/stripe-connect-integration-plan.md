@@ -317,7 +317,6 @@ Update [`app/(owner)/dashboard/page.tsx`](app/(owner)/dashboard/page.tsx ):
 - List all payments with filters (date, status, amount)
 - Search by client name or appointment ID
 - Refund functionality
-- Export to CSV
 - Integration with appointment details
 
 ### **7.3 Update Appointment Management**
