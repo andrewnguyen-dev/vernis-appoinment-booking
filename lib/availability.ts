@@ -94,7 +94,7 @@ async function getExistingAppointments(salonId: string, date: Date) {
   return prisma.appointment.findMany({
     where: {
       salonId,
-      status: { in: ["BOOKED", "COMPLETED"] }, // Don't consider canceled appointments
+      status: { in: ["PENDING", "CONFIRMED", "COMPLETED"] }, // Treat pending as held slots
       startsAt: { gte: startOfDay, lte: endOfDay },
     },
     select: {
@@ -269,7 +269,7 @@ export async function isTimeSlotAvailable(
     const appointmentsWithIds = await prisma.appointment.findMany({
       where: {
         salonId,
-        status: { in: ["BOOKED", "COMPLETED"] },
+        status: { in: ["PENDING", "CONFIRMED", "COMPLETED"] },
         startsAt: { gte: startOfDay, lte: endOfDay },
         id: { notIn: excludeAppointmentIds }, // Exclude specified appointments
       },

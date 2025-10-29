@@ -87,7 +87,9 @@ enum Role {
 }
 
 enum AppointmentStatus {
-  BOOKED
+  PENDING
+  CONFIRMED
+  DECLINED
   CANCELED
   COMPLETED
 }
@@ -270,7 +272,7 @@ model Appointment {
   assignedStaffId String? // optional staff assignment
   startsAt        DateTime
   endsAt          DateTime
-  status          AppointmentStatus @default(BOOKED)
+  status          AppointmentStatus @default(PENDING)
   notes           String?
   createdByUserId String? // staff/owner who created it; null if self-serve
 

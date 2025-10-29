@@ -153,7 +153,7 @@ export async function createAppointmentRecord(
         clientId: client.id,
         startsAt: context.appointmentDate,
         endsAt: context.appointmentEndTime,
-        status: "BOOKED",
+        status: "PENDING",
         notes: validatedData.customer.notes || null,
       },
     });

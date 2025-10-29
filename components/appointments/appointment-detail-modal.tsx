@@ -21,7 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import { CalendarIcon, ClockIcon, UserIcon, PhoneIcon, MailIcon, NotebookIcon, Trash2Icon, UsersIcon } from 'lucide-react'
 import { updateAppointment, cancelAppointment, updateAppointmentTime, getSalonStaff } from '@/app/actions/appointment-management'
 import { toast } from 'react-hot-toast'
-import type { AppointmentData } from '@/types/appointment'
+import type { AppointmentData, AppointmentStatus } from '@/types/appointment'
 
 interface StaffMember {
   id: string
@@ -42,6 +42,56 @@ interface AppointmentDetailModalProps {
   salonTimeZone?: string // Add salon timezone for proper time conversion
 }
 
+const statusOptions: Array<{ value: AppointmentStatus; label: string }> = [
+  { value: 'PENDING', label: 'Pending' },
+  { value: 'CONFIRMED', label: 'Confirmed' },
+  { value: 'DECLINED', label: 'Declined' },
+  { value: 'CANCELED', label: 'Canceled' },
+  { value: 'COMPLETED', label: 'Completed' },
+]
+
+const statusBadgeClasses: Record<AppointmentStatus, string> = {
+  PENDING: 'bg-yellow-100 text-yellow-800',
+  CONFIRMED: 'bg-emerald-100 text-emerald-800',
+  DECLINED: 'bg-red-100 text-red-800',
+  CANCELED: 'bg-gray-100 text-gray-800',
+  COMPLETED: 'bg-blue-100 text-blue-800',
+}
+
+const statusToastMessages: Record<AppointmentStatus, string> = {
+  PENDING: 'Appointment marked as pending',
+  CONFIRMED: 'Appointment confirmed',
+  DECLINED: 'Appointment declined',
+  CANCELED: 'Appointment cancelled',
+  COMPLETED: 'Appointment marked as completed',
+}
+
+interface AppointmentFormState {
+  status: AppointmentStatus
+  notes: string
+  assignedStaffId: string | null
+  clientFirstName: string
+  clientLastName: string
+  clientEmail: string
+  clientPhone: string
+  appointmentDate: string
+  startTime: string
+  endTime: string
+}
+
+const emptyFormState: AppointmentFormState = {
+  status: 'PENDING',
+  notes: '',
+  assignedStaffId: null,
+  clientFirstName: '',
+  clientLastName: '',
+  clientEmail: '',
+  clientPhone: '',
+  appointmentDate: '',
+  startTime: '',
+  endTime: '',
+}
+
 const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   appointment,
   isOpen,
@@ -52,24 +102,15 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [pendingStatusAction, setPendingStatusAction] = useState<AppointmentStatus | null>(null)
   const [staffList, setStaffList] = useState<StaffMember[]>([])
   const [loadingStaff, setLoadingStaff] = useState(false)
-  const [formData, setFormData] = useState({
-    status: '',
-    notes: '',
-    assignedStaffId: null as string | null,
-    clientFirstName: '',
-    clientLastName: '',
-    clientEmail: '',
-    clientPhone: '',
-    appointmentDate: '',
-    startTime: '',
-    endTime: '',
-  })
+  const [formData, setFormData] = useState<AppointmentFormState>(() => ({ ...emptyFormState }))
+  const [initialFormData, setInitialFormData] = useState<AppointmentFormState>(() => ({ ...emptyFormState }))
 
   React.useEffect(() => {
     if (appointment) {
-      setFormData({
+      const nextState: AppointmentFormState = {
         status: appointment.status,
         notes: appointment.notes || '',
         assignedStaffId: appointment.assignedStaff?.id || null,
@@ -80,7 +121,12 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
         appointmentDate: format(appointment.startsAtLocal, 'yyyy-MM-dd'),
         startTime: format(appointment.startsAtLocal, 'HH:mm'),
         endTime: format(appointment.endsAtLocal, 'HH:mm'),
-      })
+      }
+      setFormData(nextState)
+      setInitialFormData(nextState)
+    } else {
+      setFormData({ ...emptyFormState })
+      setInitialFormData({ ...emptyFormState })
     }
   }, [appointment])
 
@@ -154,7 +200,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
       // Update other appointment details
       const result = await updateAppointment({
         appointmentId: appointment.id,
-        status: formData.status as "BOOKED" | "COMPLETED" | "CANCELED",
+        status: formData.status,
         notes: formData.notes,
         assignedStaffId: formData.assignedStaffId,
         client: {
@@ -167,6 +213,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
 
       if (result.success) {
         toast.success('Appointment updated successfully')
+        setInitialFormData({ ...formData })
         setIsEditing(false)
         onSave?.() // Refresh the appointments list
       } else {
@@ -182,19 +229,53 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
 
   const handleCancel = () => {
     // Reset form data
-    setFormData({
-      status: appointment.status,
-      notes: appointment.notes || '',
-      assignedStaffId: appointment.assignedStaff?.id || null,
-      clientFirstName: appointment.client.firstName,
-      clientLastName: appointment.client.lastName || '',
-      clientEmail: appointment.client.email || '',
-      clientPhone: appointment.client.phone || '',
-      appointmentDate: format(appointment.startsAtLocal, 'yyyy-MM-dd'),
-      startTime: format(appointment.startsAtLocal, 'HH:mm'),
-      endTime: format(appointment.endsAtLocal, 'HH:mm'),
-    })
+    setFormData({ ...initialFormData })
     setIsEditing(false)
+  }
+
+  const handleStatusUpdate = async (nextStatus: AppointmentStatus) => {
+    if (formData.status === nextStatus) {
+      return
+    }
+
+    setPendingStatusAction(nextStatus)
+    setIsSaving(true)
+    try {
+      const result = await updateAppointment({
+        appointmentId: appointment.id,
+        status: nextStatus,
+        notes: formData.notes,
+        assignedStaffId: formData.assignedStaffId,
+        client: {
+          firstName: formData.clientFirstName,
+          lastName: formData.clientLastName,
+          email: formData.clientEmail,
+          phone: formData.clientPhone,
+        },
+      })
+
+      if (result.success) {
+        toast.success(statusToastMessages[nextStatus])
+        setFormData((prev) => ({
+          ...prev,
+          status: nextStatus,
+        }))
+        setInitialFormData((prev) => ({
+          ...prev,
+          status: nextStatus,
+        }))
+        setIsEditing(false)
+        onSave?.()
+      } else {
+        toast.error(result.error || 'Failed to update appointment')
+      }
+    } catch (error) {
+      console.error('Error updating appointment status:', error)
+      toast.error('Failed to update appointment status')
+    } finally {
+      setIsSaving(false)
+      setPendingStatusAction(null)
+    }
   }
 
   const handleCancelAppointment = async () => {
@@ -292,26 +373,25 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
             {isEditing ? (
               <Select
                 value={formData.status}
-                onValueChange={(value) => setFormData({ ...formData, status: value })}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, status: value as AppointmentStatus })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="BOOKED">Booked</SelectItem>
-                  <SelectItem value="COMPLETED">Completed</SelectItem>
-                  <SelectItem value="CANCELED">Cancelled</SelectItem>
+                  {statusOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             ) : (
-              <Badge className={`${
-                appointment.status === 'BOOKED' 
-                  ? 'bg-green-100 text-green-800' 
-                  : appointment.status === 'COMPLETED'
-                  ? 'bg-blue-100 text-blue-800'
-                  : 'bg-gray-100 text-gray-800'
-              }`}>
-                {appointment.status}
+              <Badge className={statusBadgeClasses[formData.status]}>
+                {statusOptions.find((option) => option.value === formData.status)?.label ??
+                  formData.status}
               </Badge>
             )}
           </div>
@@ -403,7 +483,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                     onChange={(e) => setFormData({ ...formData, clientFirstName: e.target.value })}
                   />
                 ) : (
-                  <p className="text-sm py-2">{appointment.client.firstName}</p>
+                  <p className="text-sm py-2">{formData.clientFirstName}</p>
                 )}
               </div>
               <div>
@@ -415,7 +495,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                     onChange={(e) => setFormData({ ...formData, clientLastName: e.target.value })}
                   />
                 ) : (
-                  <p className="text-sm py-2">{appointment.client.lastName || 'N/A'}</p>
+                  <p className="text-sm py-2">{formData.clientLastName || 'N/A'}</p>
                 )}
               </div>
             </div>
@@ -432,7 +512,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               ) : (
                 <div className="flex items-center space-x-2 text-sm py-2">
                   <MailIcon className="h-3 w-3 text-gray-500" />
-                  <span>{appointment.client.email || 'N/A'}</span>
+                  <span>{formData.clientEmail || 'N/A'}</span>
                 </div>
               )}
             </div>
@@ -448,7 +528,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               ) : (
                 <div className="flex items-center space-x-2 text-sm py-2">
                   <PhoneIcon className="h-3 w-3 text-gray-500" />
-                  <span>{appointment.client.phone || 'N/A'}</span>
+                  <span>{formData.clientPhone || 'N/A'}</span>
                 </div>
               )}
             </div>
@@ -496,7 +576,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               />
             ) : (
               <p className="text-sm py-2 text-gray-600">
-                {appointment.notes || 'No notes added'}
+                {formData.notes || 'No notes added'}
               </p>
             )}
           </div>
@@ -529,10 +609,29 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               </div>
             ) : (
               <div className="flex flex-col space-y-2">
+                {formData.status === 'PENDING' && (
+                  <div className="flex flex-col sm:flex-row sm:space-x-2 space-y-2 sm:space-y-0">
+                    <Button
+                      onClick={() => handleStatusUpdate('CONFIRMED')}
+                      disabled={isSaving}
+                      className="flex-1"
+                    >
+                      {pendingStatusAction === 'CONFIRMED' ? 'Confirming...' : 'Confirm Appointment'}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={() => handleStatusUpdate('DECLINED')}
+                      disabled={isSaving}
+                      className="flex-1"
+                    >
+                      {pendingStatusAction === 'DECLINED' ? 'Declining...' : 'Decline Appointment'}
+                    </Button>
+                  </div>
+                )}
                 <Button onClick={() => setIsEditing(true)} className="w-full">
                   Edit Appointment
                 </Button>
-                {appointment.status !== 'CANCELED' && (
+                {formData.status !== 'CANCELED' && formData.status !== 'DECLINED' && (
                   <Button 
                     variant="destructive" 
                     onClick={handleCancelAppointment}

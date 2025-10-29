@@ -2,7 +2,23 @@
 
 import React from 'react'
 import { format } from 'date-fns'
-import type { AppointmentData } from '@/types/appointment'
+import type { AppointmentData, AppointmentStatus } from '@/types/appointment'
+
+const statusClasses: Record<AppointmentStatus, string> = {
+  PENDING: 'bg-yellow-100 text-yellow-800',
+  CONFIRMED: 'bg-emerald-100 text-emerald-800',
+  DECLINED: 'bg-red-100 text-red-800',
+  CANCELED: 'bg-gray-100 text-gray-800',
+  COMPLETED: 'bg-blue-100 text-blue-800',
+}
+
+const statusLabels: Record<AppointmentStatus, string> = {
+  PENDING: 'Pending',
+  CONFIRMED: 'Confirmed',
+  DECLINED: 'Declined',
+  CANCELED: 'Canceled',
+  COMPLETED: 'Completed',
+}
 
 interface AppointmentListViewProps {
   appointments: AppointmentData[]
@@ -34,14 +50,8 @@ const AppointmentListView: React.FC<AppointmentListViewProps> = ({
                   <h3 className="text-lg font-semibold">
                     {appointment.client.firstName} {appointment.client.lastName}
                   </h3>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    appointment.status === 'BOOKED' 
-                      ? 'bg-green-100 text-green-800' 
-                      : appointment.status === 'COMPLETED'
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {appointment.status}
+                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusClasses[appointment.status]}`}>
+                    {statusLabels[appointment.status]}
                   </span>
                 </div>
 

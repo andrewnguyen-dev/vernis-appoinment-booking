@@ -1,10 +1,12 @@
+import type { AppointmentStatus } from './appointment';
+
 export interface AppointmentData {
   id: string;
   startsAt: Date;
   endsAt: Date;
   startsAtLocal: Date;
   endsAtLocal: Date;
-  status: 'BOOKED' | 'CANCELED' | 'COMPLETED';
+  status: AppointmentStatus;
   notes: string | null;
   client: {
     id: string;

@@ -4,7 +4,15 @@ import React, { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import type { AppointmentData } from '@/types/appointment'
+import type { AppointmentData, AppointmentStatus } from '@/types/appointment'
+
+const calendarStatusClasses: Record<AppointmentStatus, string> = {
+  PENDING: 'bg-yellow-50 border-yellow-400 text-yellow-900',
+  CONFIRMED: 'bg-emerald-50 border-emerald-400 text-emerald-900',
+  DECLINED: 'bg-red-50 border-red-400 text-red-900',
+  CANCELED: 'bg-gray-50 border-gray-400 text-gray-900',
+  COMPLETED: 'bg-blue-50 border-blue-400 text-blue-900',
+}
 
 interface CalendarDayViewProps {
   selectedDate: Date
@@ -195,13 +203,9 @@ const CalendarDayView: React.FC<CalendarDayViewProps> = ({
                   }}
                   onClick={() => onAppointmentClick(appointment)}
                 >
-                  <div className={`h-full rounded-md border-l-4 px-2 py-1 shadow-sm text-xs ${
-                    appointment.status === 'BOOKED' 
-                      ? 'bg-green-50 border-green-400 text-green-900' 
-                      : appointment.status === 'COMPLETED'
-                      ? 'bg-blue-50 border-blue-400 text-blue-900'
-                      : 'bg-gray-50 border-gray-400 text-gray-900'
-                  }`}>
+                  <div
+                    className={`h-full rounded-md border-l-4 px-2 py-1 shadow-sm text-xs ${calendarStatusClasses[appointment.status]}`}
+                  >
                     <div className="font-medium truncate">
                       {appointment.client.firstName} {appointment.client.lastName}
                     </div>

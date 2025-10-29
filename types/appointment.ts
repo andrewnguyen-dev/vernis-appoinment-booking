@@ -1,10 +1,12 @@
+export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'CANCELED' | 'COMPLETED'
+
 export interface AppointmentData {
   id: string
   startsAt: Date
   endsAt: Date
   startsAtLocal: Date
   endsAtLocal: Date
-  status: string
+  status: AppointmentStatus
   notes?: string | null
   client: {
     id: string
@@ -43,7 +45,7 @@ export interface AppointmentData {
 }
 
 export interface AppointmentUpdateData {
-  status: string
+  status: AppointmentStatus
   notes: string
   assignedStaffId?: string | null
   client: {

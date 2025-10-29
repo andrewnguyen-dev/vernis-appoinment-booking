@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache"
 // Validation schemas
 const UpdateAppointmentSchema = z.object({
   appointmentId: z.string().cuid(),
-  status: z.enum(["BOOKED", "COMPLETED", "CANCELED"]),
+  status: z.enum(["PENDING", "CONFIRMED", "DECLINED", "CANCELED", "COMPLETED"]),
   notes: z.string().optional(),
   assignedStaffId: z.string().cuid().optional().nullable(),
   client: z.object({

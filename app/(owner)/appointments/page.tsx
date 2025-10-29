@@ -16,7 +16,7 @@ async function getUpcomingAppointments(salonId: string, salonTimeZone: string): 
       //   gte: now, // Only upcoming appointments
       // },
       status: {
-        in: ['BOOKED', 'COMPLETED', 'CANCELED'], // Exclude cancelled
+        in: ['PENDING', 'CONFIRMED', 'DECLINED', 'CANCELED', 'COMPLETED'], // Show every appointment state
       },
     },
     include: {
