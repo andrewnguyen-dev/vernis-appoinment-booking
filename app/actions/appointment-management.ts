@@ -6,6 +6,7 @@ import { requireOwnerAuth } from "@/lib/auth-utils"
 import { getUserSalon } from "@/lib/user-utils"
 import { isTimeSlotAvailable } from "@/lib/availability"
 import { revalidatePath } from "next/cache"
+import { refundAppointment as refundStripeAppointment } from "@/lib/services/stripe-payment-service"
 
 // Validation schemas
 const UpdateAppointmentSchema = z.object({
@@ -28,6 +29,10 @@ const UpdateAppointmentTimeSchema = z.object({
 })
 
 const DeleteAppointmentSchema = z.object({
+  appointmentId: z.string().cuid(),
+})
+
+const RefundAppointmentSchema = z.object({
   appointmentId: z.string().cuid(),
 })
 
@@ -322,6 +327,67 @@ export async function updateAppointmentTime(data: UpdateAppointmentTimeData) {
     return {
       success: false,
       error: "Failed to update appointment time"
+    }
+  }
+}
+
+export async function refundAppointmentPayment(data: { appointmentId: string }) {
+  try {
+    const { appointmentId } = RefundAppointmentSchema.parse(data)
+
+    const session = await requireOwnerAuth()
+    const salon = await getUserSalon(session.user.id, 'OWNER')
+
+    if (!salon) {
+      return {
+        success: false,
+        error: "No salon found for this user",
+      }
+    }
+
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      select: { salonId: true },
+    })
+
+    if (!appointment) {
+      return {
+        success: false,
+        error: "Appointment not found",
+      }
+    }
+
+    if (appointment.salonId !== salon.id) {
+      return {
+        success: false,
+        error: "You don't have permission to refund this appointment",
+      }
+    }
+
+    const result = await refundStripeAppointment(appointmentId)
+
+    revalidatePath("/appointments")
+    revalidatePath("/payments")
+
+    return {
+      success: true,
+      data: result,
+    }
+  } catch (error) {
+    console.error("Error refunding appointment payment:", error)
+
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: "Invalid data: " + error.issues.map((issue) => issue.message).join(", "),
+      }
+    }
+
+    const message = error instanceof Error ? error.message : "Failed to process refund"
+
+    return {
+      success: false,
+      error: message,
     }
   }
 }

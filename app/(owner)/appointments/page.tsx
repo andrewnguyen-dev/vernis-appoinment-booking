@@ -1,14 +1,14 @@
-import React from 'react'
-import { requireOwnerAuth } from '@/lib/auth-utils'
-import { getUserSalon } from '@/lib/user-utils'
-import prisma from '@/db'
-import { toZonedTime } from 'date-fns-tz'
-import AppointmentsView from '@/app/(owner)/appointments/appointments-view'
-import type { AppointmentData } from '@/types/appointment'
+import React from "react";
+import { requireOwnerAuth } from "@/lib/auth-utils";
+import { getUserSalon } from "@/lib/user-utils";
+import prisma from "@/db";
+import { toZonedTime } from "date-fns-tz";
+import AppointmentsView from "@/app/(owner)/appointments/appointments-view";
+import type { AppointmentData } from "@/types/appointment";
 
 async function getUpcomingAppointments(salonId: string, salonTimeZone: string): Promise<AppointmentData[]> {
   // const now = new Date()
-  
+
   const appointments = await prisma.appointment.findMany({
     where: {
       salonId: salonId,
@@ -16,7 +16,7 @@ async function getUpcomingAppointments(salonId: string, salonTimeZone: string): 
       //   gte: now, // Only upcoming appointments
       // },
       status: {
-        in: ['PENDING', 'CONFIRMED', 'DECLINED', 'CANCELED', 'COMPLETED'], // Show every appointment state
+        in: ["PENDING", "CONFIRMED", "DECLINED", "CANCELED", "COMPLETED"], // Show every appointment state
       },
     },
     include: {
@@ -56,7 +56,7 @@ async function getUpcomingAppointments(salonId: string, salonTimeZone: string): 
           },
         },
         orderBy: {
-          sortOrder: 'asc',
+          sortOrder: "asc",
         },
       },
       createdBy: {
@@ -66,26 +66,33 @@ async function getUpcomingAppointments(salonId: string, salonTimeZone: string): 
           email: true,
         },
       },
+      payments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1,
+      },
     },
     orderBy: {
-      startsAt: 'asc',
+      startsAt: "asc",
     },
-  })
+  });
 
   // Convert appointment times to salon timezone for display
-  return appointments.map(appointment => ({
+  return appointments.map(({ payments, ...appointment }) => ({
     ...appointment,
+    payment: payments[0] ?? null,
     startsAtLocal: toZonedTime(appointment.startsAt, salonTimeZone),
     endsAtLocal: toZonedTime(appointment.endsAt, salonTimeZone),
-  }))
+  }));
 }
 
 const AppointmentsPage = async () => {
   // Ensure user is authenticated and has owner role
-  const session = await requireOwnerAuth()
-  
+  const session = await requireOwnerAuth();
+
   // Get user's salon (owners are limited to one salon)
-  const salon = await getUserSalon(session.user.id, 'OWNER')
+  const salon = await getUserSalon(session.user.id, "OWNER");
 
   if (!salon) {
     return (
@@ -93,19 +100,13 @@ const AppointmentsPage = async () => {
         <h1 className="text-2xl font-bold mb-4">No Salon Found</h1>
         <p className="text-gray-600">You don&apos;t have any salon associated with your account.</p>
       </div>
-    )
+    );
   }
-  
+
   // Fetch upcoming appointments
-  const appointments = await getUpcomingAppointments(salon.id, salon.timeZone)
+  const appointments = await getUpcomingAppointments(salon.id, salon.timeZone);
 
-  return (
-    <AppointmentsView
-      initialAppointments={appointments}
-      salonName={salon.name}
-      salonTimeZone={salon.timeZone}
-    />
-  )
-}
+  return <AppointmentsView initialAppointments={appointments} salonName={salon.name} salonTimeZone={salon.timeZone} />;
+};
 
-export default AppointmentsPage
+export default AppointmentsPage;

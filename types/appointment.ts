@@ -1,4 +1,24 @@
+import type { PaymentProvider, PaymentStatus } from '@prisma/client'
+
 export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'CANCELED' | 'COMPLETED'
+
+export interface AppointmentPaymentData {
+  id: string
+  status: PaymentStatus
+  provider: PaymentProvider
+  amountCents: number
+  currency: string
+  platformFeeAmount: number | null
+  netAmount: number | null
+  stripeFeeAmount: number | null
+  stripePaymentIntentId?: string | null
+  stripeChargeId?: string | null
+  stripeRefundId?: string | null
+  connectedAccountId?: string | null
+  providerRef?: string | null
+  capturedAt?: Date | null
+  refundedAt?: Date | null
+}
 
 export interface AppointmentData {
   id: string
@@ -42,6 +62,7 @@ export interface AppointmentData {
     name: string
     email: string
   } | null
+  payment?: AppointmentPaymentData | null
 }
 
 export interface AppointmentUpdateData {

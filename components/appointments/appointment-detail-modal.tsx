@@ -1,6 +1,9 @@
+'use client'
+
 import React, { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { fromZonedTime } from 'date-fns-tz'
+import type { PaymentStatus } from '@prisma/client'
 import {
   Dialog,
   DialogContent,
@@ -18,8 +21,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { CalendarIcon, ClockIcon, UserIcon, PhoneIcon, MailIcon, NotebookIcon, Trash2Icon, UsersIcon } from 'lucide-react'
-import { updateAppointment, cancelAppointment, updateAppointmentTime, getSalonStaff } from '@/app/actions/appointment-management'
+import { CalendarIcon, ClockIcon, UserIcon, PhoneIcon, MailIcon, NotebookIcon, Trash2Icon, UsersIcon, CreditCardIcon, ExternalLinkIcon, RotateCcwIcon } from 'lucide-react'
+import { updateAppointment, cancelAppointment, updateAppointmentTime, getSalonStaff, refundAppointmentPayment } from '@/app/actions/appointment-management'
 import { toast } from 'react-hot-toast'
 import type { AppointmentData, AppointmentStatus } from '@/types/appointment'
 
@@ -66,6 +69,49 @@ const statusToastMessages: Record<AppointmentStatus, string> = {
   COMPLETED: 'Appointment marked as completed',
 }
 
+const paymentStatusStyles: Record<PaymentStatus, { label: string; className: string }> = {
+  PAID: { label: 'Paid', className: 'bg-emerald-100 text-emerald-800' },
+  PENDING: { label: 'Pending', className: 'bg-yellow-100 text-yellow-800' },
+  AUTHORIZED: { label: 'Authorised', className: 'bg-blue-100 text-blue-800' },
+  REFUNDED: { label: 'Refunded', className: 'bg-amber-100 text-amber-800' },
+  FAILED: { label: 'Failed', className: 'bg-red-100 text-red-800' },
+}
+
+function formatCurrency(amountCents?: number | null, currency = 'AUD') {
+  if (amountCents === null || amountCents === undefined) {
+    return '—'
+  }
+
+  try {
+    return new Intl.NumberFormat('en-AU', {
+      style: 'currency',
+      currency: currency.toUpperCase(),
+    }).format(amountCents / 100)
+  } catch {
+    return `$${(amountCents / 100).toFixed(2)}`
+  }
+}
+
+function buildStripeDashboardUrl(payment: AppointmentData['payment']): string | null {
+  if (!payment || payment.provider !== 'STRIPE') {
+    return null
+  }
+
+  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  const isLiveMode = publishableKey ? publishableKey.startsWith('pk_live') : false
+  const baseUrl = isLiveMode ? 'https://dashboard.stripe.com' : 'https://dashboard.stripe.com/test'
+  const accountSegment = payment.connectedAccountId
+    ? `/connect/accounts/${encodeURIComponent(payment.connectedAccountId)}`
+    : ''
+  const paymentIdentifier = payment.stripePaymentIntentId || payment.stripeChargeId
+
+  if (paymentIdentifier) {
+    return `${baseUrl}${accountSegment}/payments/${encodeURIComponent(paymentIdentifier)}`
+  }
+
+  return `${baseUrl}${accountSegment}`
+}
+
 interface AppointmentFormState {
   status: AppointmentStatus
   notes: string
@@ -102,6 +148,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isRefunding, setIsRefunding] = useState(false)
   const [pendingStatusAction, setPendingStatusAction] = useState<AppointmentStatus | null>(null)
   const [staffList, setStaffList] = useState<StaffMember[]>([])
   const [loadingStaff, setLoadingStaff] = useState(false)
@@ -155,6 +202,13 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   }
 
   if (!appointment) return null
+
+  const payment = appointment.payment ?? null
+  const paymentStatusBadge = payment ? paymentStatusStyles[payment.status] : null
+  const stripeDashboardUrl = buildStripeDashboardUrl(payment)
+  const canRefundPayment =
+    Boolean(payment) && payment?.provider === 'STRIPE' && payment?.status === 'PAID'
+  const paymentCurrency = payment?.currency ?? 'AUD'
 
   const totalPrice = appointment.items.reduce((sum, item) => sum + item.priceCents, 0)
   const totalDuration = appointment.items.reduce((sum, item) => sum + item.durationMinutes, 0)
@@ -302,6 +356,39 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     }
   }
 
+  const handleRefundPayment = async () => {
+    if (!appointment) {
+      return
+    }
+
+    if (!canRefundPayment) {
+      toast.error('This payment cannot be refunded.')
+      return
+    }
+
+    if (!confirm('Confirm refund? This will cancel the appointment and issue a refund in Stripe.')) {
+      return
+    }
+
+    setIsRefunding(true)
+    try {
+      const result = await refundAppointmentPayment({ appointmentId: appointment.id })
+
+      if (result.success) {
+        toast.success('Payment refunded and appointment cancelled')
+        onSave?.()
+        onClose()
+      } else {
+        toast.error(result.error || 'Failed to process refund')
+      }
+    } catch (error) {
+      console.error('Error refunding payment:', error)
+      toast.error('Failed to process refund')
+    } finally {
+      setIsRefunding(false)
+    }
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md mx-auto max-h-[90vh] overflow-y-auto">
@@ -393,6 +480,91 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                 {statusOptions.find((option) => option.value === formData.status)?.label ??
                   formData.status}
               </Badge>
+            )}
+          </div>
+
+          {/* Payment */}
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <CreditCardIcon className="h-4 w-4 text-gray-500" />
+              <span className="font-medium text-sm">Payment</span>
+            </div>
+
+            {payment ? (
+              <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs uppercase tracking-wide text-gray-500">Status</span>
+                  {paymentStatusBadge ? (
+                    <Badge className={paymentStatusBadge.className}>{paymentStatusBadge.label}</Badge>
+                  ) : (
+                    <Badge className="bg-gray-100 text-gray-700">Unknown</Badge>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Amount paid</p>
+                    <p className="font-medium">{formatCurrency(payment.amountCents, paymentCurrency)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Platform fee</p>
+                    <p className="font-medium">
+                      {formatCurrency(payment.platformFeeAmount, paymentCurrency)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Net to salon</p>
+                    <p className="font-medium">
+                      {formatCurrency(payment.netAmount, paymentCurrency)}
+                    </p>
+                  </div>
+                  {payment.stripeFeeAmount !== null && payment.stripeFeeAmount !== undefined && (
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">Stripe fees</p>
+                      <p className="font-medium">
+                        {formatCurrency(payment.stripeFeeAmount, paymentCurrency)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col gap-2 pt-1 sm:flex-row">
+                  {stripeDashboardUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                      className="sm:flex-1"
+                    >
+                      <a
+                        href={stripeDashboardUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center space-x-2"
+                      >
+                        <ExternalLinkIcon className="h-4 w-4" />
+                        <span>View in Stripe</span>
+                      </a>
+                    </Button>
+                  )}
+                  {canRefundPayment && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleRefundPayment}
+                      disabled={isRefunding || isSaving || isDeleting}
+                      className="sm:flex-1"
+                    >
+                      <RotateCcwIcon className="h-4 w-4 mr-2" />
+                      {isRefunding ? 'Processing refund...' : 'Refund payment'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-3 text-sm text-gray-500">
+                No payment has been recorded for this appointment yet.
+              </div>
             )}
           </div>
 
@@ -594,7 +766,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               <div className="flex space-x-2">
                 <Button 
                   onClick={handleSave} 
-                  disabled={isSaving}
+                  disabled={isSaving || isRefunding}
                   className="flex-1"
                 >
                   {isSaving ? 'Saving...' : 'Save Changes'}
@@ -602,7 +774,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                 <Button 
                   variant="outline" 
                   onClick={handleCancel}
-                  disabled={isSaving}
+                  disabled={isSaving || isRefunding}
                 >
                   Cancel
                 </Button>
@@ -613,7 +785,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                   <div className="flex flex-col sm:flex-row sm:space-x-2 space-y-2 sm:space-y-0">
                     <Button
                       onClick={() => handleStatusUpdate('CONFIRMED')}
-                      disabled={isSaving}
+                      disabled={isSaving || isRefunding}
                       className="flex-1"
                     >
                       {pendingStatusAction === 'CONFIRMED' ? 'Confirming...' : 'Confirm Appointment'}
@@ -621,21 +793,25 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                     <Button
                       variant="destructive"
                       onClick={() => handleStatusUpdate('DECLINED')}
-                      disabled={isSaving}
+                      disabled={isSaving || isRefunding}
                       className="flex-1"
                     >
                       {pendingStatusAction === 'DECLINED' ? 'Declining...' : 'Decline Appointment'}
                     </Button>
                   </div>
                 )}
-                <Button onClick={() => setIsEditing(true)} className="w-full">
+                <Button
+                  onClick={() => setIsEditing(true)}
+                  className="w-full"
+                  disabled={isRefunding}
+                >
                   Edit Appointment
                 </Button>
                 {formData.status !== 'CANCELED' && formData.status !== 'DECLINED' && (
                   <Button 
                     variant="destructive" 
                     onClick={handleCancelAppointment}
-                    disabled={isDeleting}
+                    disabled={isDeleting || isRefunding}
                     className="w-full"
                   >
                     <Trash2Icon className="h-4 w-4 mr-2" />
