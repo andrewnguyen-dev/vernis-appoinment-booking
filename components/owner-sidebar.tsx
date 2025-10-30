@@ -9,7 +9,8 @@ import {
   Users,
   LayoutDashboard,
   UserCog,
-  Settings
+  Settings,
+  CircleDollarSign
 } from "lucide-react"
 
 import {
@@ -38,6 +39,12 @@ const navItems = [
     url: "/appointments", 
     icon: Calendar,
     description: "View and manage upcoming appointments"
+  },
+  {
+    title: "Payments",
+    url: "/payments", 
+    icon: CircleDollarSign,
+    description: "View and manage payments and invoices"
   },
   {
     title: "Catalog",
