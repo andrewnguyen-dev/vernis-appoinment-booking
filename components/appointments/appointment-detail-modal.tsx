@@ -1,253 +1,250 @@
-'use client'
+"use client";
 
-import React, { useState, useEffect } from 'react'
-import { format } from 'date-fns'
-import { fromZonedTime } from 'date-fns-tz'
-import type { PaymentStatus } from '@prisma/client'
+import React, { useState, useEffect } from "react";
+import { format } from "date-fns";
+import { enAU } from 'date-fns/locale';
+import { fromZonedTime } from "date-fns-tz";
+import type { PaymentStatus } from "@prisma/client";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+  CalendarIcon,
+  ClockIcon,
+  UserIcon,
+  PhoneIcon,
+  MailIcon,
+  NotebookIcon,
+  Trash2Icon,
+  UsersIcon,
+  CreditCardIcon,
+  ExternalLinkIcon,
+  RotateCcwIcon,
+} from "lucide-react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
-import { CalendarIcon, ClockIcon, UserIcon, PhoneIcon, MailIcon, NotebookIcon, Trash2Icon, UsersIcon, CreditCardIcon, ExternalLinkIcon, RotateCcwIcon } from 'lucide-react'
-import { updateAppointment, cancelAppointment, updateAppointmentTime, getSalonStaff, refundAppointmentPayment } from '@/app/actions/appointment-management'
-import { toast } from 'react-hot-toast'
-import type { AppointmentData, AppointmentStatus } from '@/types/appointment'
+  updateAppointment,
+  cancelAppointment,
+  updateAppointmentTime,
+  getSalonStaff,
+  refundAppointmentPayment,
+} from "@/app/actions/appointment-management";
+import { toast } from "react-hot-toast";
+import type { AppointmentData, AppointmentStatus } from "@/types/appointment";
 
 interface StaffMember {
-  id: string
-  userId: string
-  color: string
-  active: boolean
-  notes: string | null
+  id: string;
+  userId: string;
+  color: string;
+  active: boolean;
+  notes: string | null;
   user: {
-    name: string
-  }
+    name: string;
+  };
 }
 
 interface AppointmentDetailModalProps {
-  appointment: AppointmentData | null
-  isOpen: boolean
-  onClose: () => void
-  onSave?: () => void // Callback to refresh the appointments list
-  salonTimeZone?: string // Add salon timezone for proper time conversion
+  appointment: AppointmentData | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave?: () => void; // Callback to refresh the appointments list
+  salonTimeZone?: string; // Add salon timezone for proper time conversion
 }
 
 const statusOptions: Array<{ value: AppointmentStatus; label: string }> = [
-  { value: 'PENDING', label: 'Pending' },
-  { value: 'CONFIRMED', label: 'Confirmed' },
-  { value: 'DECLINED', label: 'Declined' },
-  { value: 'CANCELED', label: 'Canceled' },
-  { value: 'COMPLETED', label: 'Completed' },
-]
+  { value: "PENDING", label: "Pending" },
+  { value: "CONFIRMED", label: "Confirmed" },
+  { value: "DECLINED", label: "Declined" },
+  { value: "CANCELED", label: "Canceled" },
+  { value: "COMPLETED", label: "Completed" },
+];
 
 const statusBadgeClasses: Record<AppointmentStatus, string> = {
-  PENDING: 'bg-yellow-100 text-yellow-800',
-  CONFIRMED: 'bg-emerald-100 text-emerald-800',
-  DECLINED: 'bg-red-100 text-red-800',
-  CANCELED: 'bg-gray-100 text-gray-800',
-  COMPLETED: 'bg-blue-100 text-blue-800',
-}
+  PENDING: "bg-yellow-100 text-yellow-800",
+  CONFIRMED: "bg-emerald-100 text-emerald-800",
+  DECLINED: "bg-red-100 text-red-800",
+  CANCELED: "bg-gray-100 text-gray-800",
+  COMPLETED: "bg-blue-100 text-blue-800",
+};
 
 const statusToastMessages: Record<AppointmentStatus, string> = {
-  PENDING: 'Appointment marked as pending',
-  CONFIRMED: 'Appointment confirmed',
-  DECLINED: 'Appointment declined',
-  CANCELED: 'Appointment cancelled',
-  COMPLETED: 'Appointment marked as completed',
-}
+  PENDING: "Appointment marked as pending",
+  CONFIRMED: "Appointment confirmed",
+  DECLINED: "Appointment declined",
+  CANCELED: "Appointment cancelled",
+  COMPLETED: "Appointment marked as completed",
+};
 
 const paymentStatusStyles: Record<PaymentStatus, { label: string; className: string }> = {
-  PAID: { label: 'Paid', className: 'bg-emerald-100 text-emerald-800' },
-  PENDING: { label: 'Pending', className: 'bg-yellow-100 text-yellow-800' },
-  AUTHORIZED: { label: 'Authorised', className: 'bg-blue-100 text-blue-800' },
-  REFUNDED: { label: 'Refunded', className: 'bg-amber-100 text-amber-800' },
-  FAILED: { label: 'Failed', className: 'bg-red-100 text-red-800' },
-}
+  PAID: { label: "Paid", className: "bg-emerald-100 text-emerald-800" },
+  PENDING: { label: "Pending", className: "bg-yellow-100 text-yellow-800" },
+  AUTHORIZED: { label: "Authorised", className: "bg-blue-100 text-blue-800" },
+  REFUNDED: { label: "Refunded", className: "bg-amber-100 text-amber-800" },
+  FAILED: { label: "Failed", className: "bg-red-100 text-red-800" },
+};
 
-function formatCurrency(amountCents?: number | null, currency = 'AUD') {
+function formatCurrency(amountCents?: number | null, currency = "AUD") {
   if (amountCents === null || amountCents === undefined) {
-    return '—'
+    return "—";
   }
 
   try {
-    return new Intl.NumberFormat('en-AU', {
-      style: 'currency',
+    return new Intl.NumberFormat("en-AU", {
+      style: "currency",
       currency: currency.toUpperCase(),
-    }).format(amountCents / 100)
+    }).format(amountCents / 100);
   } catch {
-    return `$${(amountCents / 100).toFixed(2)}`
+    return `$${(amountCents / 100).toFixed(2)}`;
   }
 }
 
-function buildStripeDashboardUrl(payment: AppointmentData['payment']): string | null {
-  if (!payment || payment.provider !== 'STRIPE') {
-    return null
+function buildStripeDashboardUrl(payment: AppointmentData["payment"]): string | null {
+  if (!payment || payment.provider !== "STRIPE") {
+    return null;
   }
 
-  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-  const isLiveMode = publishableKey ? publishableKey.startsWith('pk_live') : false
-  const baseUrl = isLiveMode ? 'https://dashboard.stripe.com' : 'https://dashboard.stripe.com/test'
-  const accountSegment = payment.connectedAccountId
-    ? `/connect/accounts/${encodeURIComponent(payment.connectedAccountId)}`
-    : ''
-  const paymentIdentifier = payment.stripePaymentIntentId || payment.stripeChargeId
+  const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+  const isLiveMode = publishableKey ? publishableKey.startsWith("pk_live") : false;
+  const baseUrl = isLiveMode ? "https://dashboard.stripe.com" : "https://dashboard.stripe.com/test";
+  const accountSegment = payment.connectedAccountId ? `/connect/accounts/${encodeURIComponent(payment.connectedAccountId)}` : "";
+  const paymentIdentifier = payment.stripePaymentIntentId || payment.stripeChargeId;
 
   if (paymentIdentifier) {
-    return `${baseUrl}${accountSegment}/payments/${encodeURIComponent(paymentIdentifier)}`
+    return `${baseUrl}${accountSegment}/payments/${encodeURIComponent(paymentIdentifier)}`;
   }
 
-  return `${baseUrl}${accountSegment}`
+  return `${baseUrl}${accountSegment}`;
 }
 
 interface AppointmentFormState {
-  status: AppointmentStatus
-  notes: string
-  assignedStaffId: string | null
-  clientFirstName: string
-  clientLastName: string
-  clientEmail: string
-  clientPhone: string
-  appointmentDate: string
-  startTime: string
-  endTime: string
+  status: AppointmentStatus;
+  notes: string;
+  assignedStaffId: string | null;
+  clientFirstName: string;
+  clientLastName: string;
+  clientEmail: string;
+  clientPhone: string;
+  appointmentDate: string;
+  startTime: string;
+  endTime: string;
 }
 
 const emptyFormState: AppointmentFormState = {
-  status: 'PENDING',
-  notes: '',
+  status: "PENDING",
+  notes: "",
   assignedStaffId: null,
-  clientFirstName: '',
-  clientLastName: '',
-  clientEmail: '',
-  clientPhone: '',
-  appointmentDate: '',
-  startTime: '',
-  endTime: '',
-}
+  clientFirstName: "",
+  clientLastName: "",
+  clientEmail: "",
+  clientPhone: "",
+  appointmentDate: "",
+  startTime: "",
+  endTime: "",
+};
 
 const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   appointment,
   isOpen,
   onClose,
   onSave,
-  salonTimeZone = 'UTC', // Default fallback
+  salonTimeZone = "UTC", // Default fallback
 }) => {
-  const [isEditing, setIsEditing] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [isRefunding, setIsRefunding] = useState(false)
-  const [pendingStatusAction, setPendingStatusAction] = useState<AppointmentStatus | null>(null)
-  const [staffList, setStaffList] = useState<StaffMember[]>([])
-  const [loadingStaff, setLoadingStaff] = useState(false)
-  const [formData, setFormData] = useState<AppointmentFormState>(() => ({ ...emptyFormState }))
-  const [initialFormData, setInitialFormData] = useState<AppointmentFormState>(() => ({ ...emptyFormState }))
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isRefunding, setIsRefunding] = useState(false);
+  const [pendingStatusAction, setPendingStatusAction] = useState<AppointmentStatus | null>(null);
+  const [staffList, setStaffList] = useState<StaffMember[]>([]);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [formData, setFormData] = useState<AppointmentFormState>(() => ({ ...emptyFormState }));
+  const [initialFormData, setInitialFormData] = useState<AppointmentFormState>(() => ({ ...emptyFormState }));
 
   React.useEffect(() => {
     if (appointment) {
       const nextState: AppointmentFormState = {
         status: appointment.status,
-        notes: appointment.notes || '',
+        notes: appointment.notes || "",
         assignedStaffId: appointment.assignedStaff?.id || null,
         clientFirstName: appointment.client.firstName,
-        clientLastName: appointment.client.lastName || '',
-        clientEmail: appointment.client.email || '',
-        clientPhone: appointment.client.phone || '',
-        appointmentDate: format(appointment.startsAtLocal, 'yyyy-MM-dd'),
-        startTime: format(appointment.startsAtLocal, 'HH:mm'),
-        endTime: format(appointment.endsAtLocal, 'HH:mm'),
-      }
-      setFormData(nextState)
-      setInitialFormData(nextState)
+        clientLastName: appointment.client.lastName || "",
+        clientEmail: appointment.client.email || "",
+        clientPhone: appointment.client.phone || "",
+        appointmentDate: format(appointment.startsAtLocal, "yyyy-MM-dd"),
+        startTime: format(appointment.startsAtLocal, "HH:mm"),
+        endTime: format(appointment.endsAtLocal, "HH:mm"),
+      };
+      setFormData(nextState);
+      setInitialFormData(nextState);
     } else {
-      setFormData({ ...emptyFormState })
-      setInitialFormData({ ...emptyFormState })
+      setFormData({ ...emptyFormState });
+      setInitialFormData({ ...emptyFormState });
     }
-  }, [appointment])
+  }, [appointment]);
 
   // Load staff list when modal opens and user starts editing
   useEffect(() => {
     if (isOpen && isEditing && staffList.length === 0) {
-      loadStaffList()
+      loadStaffList();
     }
-  }, [isOpen, isEditing, staffList.length])
+  }, [isOpen, isEditing, staffList.length]);
 
   const loadStaffList = async () => {
-    setLoadingStaff(true)
+    setLoadingStaff(true);
     try {
-      const result = await getSalonStaff()
+      const result = await getSalonStaff();
       if (result.success && result.data) {
-        setStaffList(result.data)
+        setStaffList(result.data);
       } else {
-        toast.error('Failed to load staff list')
+        toast.error("Failed to load staff list");
       }
     } catch (error) {
-      console.error('Error loading staff:', error)
-      toast.error('Failed to load staff list')
+      console.error("Error loading staff:", error);
+      toast.error("Failed to load staff list");
     } finally {
-      setLoadingStaff(false)
+      setLoadingStaff(false);
     }
-  }
+  };
 
-  if (!appointment) return null
+  if (!appointment) return null;
 
-  const payment = appointment.payment ?? null
-  const paymentStatusBadge = payment ? paymentStatusStyles[payment.status] : null
-  const stripeDashboardUrl = buildStripeDashboardUrl(payment)
-  const canRefundPayment =
-    Boolean(payment) && payment?.provider === 'STRIPE' && payment?.status === 'PAID'
-  const paymentCurrency = payment?.currency ?? 'AUD'
+  const payment = appointment.payment ?? null;
+  const paymentStatusBadge = payment ? paymentStatusStyles[payment.status] : null;
+  const stripeDashboardUrl = buildStripeDashboardUrl(payment);
+  const canRefundPayment = Boolean(payment) && payment?.provider === "STRIPE" && payment?.status === "PAID";
+  const paymentCurrency = payment?.currency ?? "AUD";
 
-  const totalPrice = appointment.items.reduce((sum, item) => sum + item.priceCents, 0)
-  const totalDuration = appointment.items.reduce((sum, item) => sum + item.durationMinutes, 0)
+  const totalPrice = appointment.items.reduce((sum, item) => sum + item.priceCents, 0);
+  const totalDuration = appointment.items.reduce((sum, item) => sum + item.durationMinutes, 0);
 
   const handleSave = async () => {
-    setIsSaving(true)
+    setIsSaving(true);
     try {
       // Check if time has changed
-      const originalDate = format(appointment.startsAtLocal, 'yyyy-MM-dd')
-      const originalStartTime = format(appointment.startsAtLocal, 'HH:mm')
-      const originalEndTime = format(appointment.endsAtLocal, 'HH:mm')
-      
-      const timeChanged = 
-        formData.appointmentDate !== originalDate ||
-        formData.startTime !== originalStartTime ||
-        formData.endTime !== originalEndTime
+      const originalDate = format(appointment.startsAtLocal, "yyyy-MM-dd");
+      const originalStartTime = format(appointment.startsAtLocal, "HH:mm");
+      const originalEndTime = format(appointment.endsAtLocal, "HH:mm");
+
+      const timeChanged =
+        formData.appointmentDate !== originalDate || formData.startTime !== originalStartTime || formData.endTime !== originalEndTime;
 
       // If time changed, update appointment time first
       if (timeChanged) {
         // Combine date and time, then convert to UTC for storage
-        const startDateTime = fromZonedTime(
-          `${formData.appointmentDate}T${formData.startTime}:00`,
-          salonTimeZone
-        )
-        const endDateTime = fromZonedTime(
-          `${formData.appointmentDate}T${formData.endTime}:00`,
-          salonTimeZone
-        )
+        const startDateTime = fromZonedTime(`${formData.appointmentDate}T${formData.startTime}:00`, salonTimeZone);
+        const endDateTime = fromZonedTime(`${formData.appointmentDate}T${formData.endTime}:00`, salonTimeZone);
 
         const timeResult = await updateAppointmentTime({
           appointmentId: appointment.id,
           startsAt: startDateTime.toISOString(),
           endsAt: endDateTime.toISOString(),
-        })
+        });
 
         if (!timeResult.success) {
-          toast.error(timeResult.error || 'Failed to update appointment time')
-          setIsSaving(false)
-          return
+          toast.error(timeResult.error || "Failed to update appointment time");
+          setIsSaving(false);
+          return;
         }
       }
 
@@ -263,37 +260,37 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
           email: formData.clientEmail,
           phone: formData.clientPhone,
         },
-      })
+      });
 
       if (result.success) {
-        toast.success('Appointment updated successfully')
-        setInitialFormData({ ...formData })
-        setIsEditing(false)
-        onSave?.() // Refresh the appointments list
+        toast.success("Appointment updated successfully");
+        setInitialFormData({ ...formData });
+        setIsEditing(false);
+        onSave?.(); // Refresh the appointments list
       } else {
-        toast.error(result.error || 'Failed to update appointment')
+        toast.error(result.error || "Failed to update appointment");
       }
     } catch (error) {
-      console.error('Error saving appointment:', error)
-      toast.error('Failed to update appointment')
+      console.error("Error saving appointment:", error);
+      toast.error("Failed to update appointment");
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
+  };
 
   const handleCancel = () => {
     // Reset form data
-    setFormData({ ...initialFormData })
-    setIsEditing(false)
-  }
+    setFormData({ ...initialFormData });
+    setIsEditing(false);
+  };
 
   const handleStatusUpdate = async (nextStatus: AppointmentStatus) => {
     if (formData.status === nextStatus) {
-      return
+      return;
     }
 
-    setPendingStatusAction(nextStatus)
-    setIsSaving(true)
+    setPendingStatusAction(nextStatus);
+    setIsSaving(true);
     try {
       const result = await updateAppointment({
         appointmentId: appointment.id,
@@ -306,88 +303,88 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
           email: formData.clientEmail,
           phone: formData.clientPhone,
         },
-      })
+      });
 
       if (result.success) {
-        toast.success(statusToastMessages[nextStatus])
+        toast.success(statusToastMessages[nextStatus]);
         setFormData((prev) => ({
           ...prev,
           status: nextStatus,
-        }))
+        }));
         setInitialFormData((prev) => ({
           ...prev,
           status: nextStatus,
-        }))
-        setIsEditing(false)
-        onSave?.()
+        }));
+        setIsEditing(false);
+        onSave?.();
       } else {
-        toast.error(result.error || 'Failed to update appointment')
+        toast.error(result.error || "Failed to update appointment");
       }
     } catch (error) {
-      console.error('Error updating appointment status:', error)
-      toast.error('Failed to update appointment status')
+      console.error("Error updating appointment status:", error);
+      toast.error("Failed to update appointment status");
     } finally {
-      setIsSaving(false)
-      setPendingStatusAction(null)
+      setIsSaving(false);
+      setPendingStatusAction(null);
     }
-  }
+  };
 
   const handleCancelAppointment = async () => {
-    if (!confirm('Are you sure you want to cancel this appointment?')) {
-      return
+    if (!confirm("Are you sure you want to cancel this appointment?")) {
+      return;
     }
 
-    setIsDeleting(true)
+    setIsDeleting(true);
     try {
-      const result = await cancelAppointment(appointment.id)
+      const result = await cancelAppointment(appointment.id);
 
       if (result.success) {
-        toast.success('Appointment cancelled successfully')
-        onSave?.() // Refresh the appointments list
-        onClose()
+        toast.success("Appointment cancelled successfully");
+        onSave?.(); // Refresh the appointments list
+        onClose();
       } else {
-        toast.error(result.error || 'Failed to cancel appointment')
+        toast.error(result.error || "Failed to cancel appointment");
       }
     } catch (error) {
-      console.error('Error cancelling appointment:', error)
-      toast.error('Failed to cancel appointment')
+      console.error("Error cancelling appointment:", error);
+      toast.error("Failed to cancel appointment");
     } finally {
-      setIsDeleting(false)
+      setIsDeleting(false);
     }
-  }
+  };
 
   const handleRefundPayment = async () => {
     if (!appointment) {
-      return
+      return;
     }
 
     if (!canRefundPayment) {
-      toast.error('This payment cannot be refunded.')
-      return
+      toast.error("This payment cannot be refunded.");
+      return;
     }
 
-    if (!confirm('Confirm refund? This will cancel the appointment and issue a refund in Stripe.')) {
-      return
+    if (!confirm("Confirm refund? This will cancel the appointment and issue a refund in Stripe.")) {
+      return;
     }
 
-    setIsRefunding(true)
+    setIsRefunding(true);
     try {
-      const result = await refundAppointmentPayment({ appointmentId: appointment.id })
+      const result = await refundAppointmentPayment({ appointmentId: appointment.id });
 
       if (result.success) {
-        toast.success('Payment refunded and appointment cancelled')
-        onSave?.()
-        onClose()
+        toast.success("Payment refunded and appointment cancelled");
+        onSave?.();
+        onClose();
       } else {
-        toast.error(result.error || 'Failed to process refund')
+        toast.error(result.error || "Failed to process refund");
       }
     } catch (error) {
-      console.error('Error refunding payment:', error)
-      toast.error('Failed to process refund')
+      console.error("Error refunding payment:", error);
+      toast.error("Failed to process refund");
     } finally {
-      setIsRefunding(false)
+      setIsRefunding(false);
     }
-  }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -403,7 +400,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               <CalendarIcon className="h-4 w-4 text-gray-500" />
               <span className="font-medium text-sm">Date & Time</span>
             </div>
-            
+
             {isEditing ? (
               <div className="space-y-3">
                 <div>
@@ -439,14 +436,12 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
             ) : (
               <div className="space-y-1">
                 <div className="flex items-center space-x-2 text-sm">
-                  <span className="font-medium">
-                    {format(appointment.startsAtLocal, 'EEEE, MMMM d, yyyy')}
-                  </span>
+                  <span className="font-medium">{format(appointment.startsAtLocal, "EEEE, MMMM d, yyyy")}</span>
                 </div>
                 <div className="flex items-center space-x-2 text-sm">
                   <ClockIcon className="h-4 w-4 text-gray-500" />
                   <span>
-                    {format(appointment.startsAtLocal, 'h:mm a')} - {format(appointment.endsAtLocal, 'h:mm a')}
+                    {format(appointment.startsAtLocal, "h:mm a")} - {format(appointment.endsAtLocal, "h:mm a")}
                   </span>
                   <span className="text-gray-500">({totalDuration} min)</span>
                 </div>
@@ -458,12 +453,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
           <div className="space-y-2">
             <Label htmlFor="status">Status</Label>
             {isEditing ? (
-              <Select
-                value={formData.status}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, status: value as AppointmentStatus })
-                }
-              >
+              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as AppointmentStatus })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -477,8 +467,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               </Select>
             ) : (
               <Badge className={statusBadgeClasses[formData.status]}>
-                {statusOptions.find((option) => option.value === formData.status)?.label ??
-                  formData.status}
+                {statusOptions.find((option) => option.value === formData.status)?.label ?? formData.status}
               </Badge>
             )}
           </div>
@@ -507,35 +496,24 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                     <p className="font-medium">{formatCurrency(payment.amountCents, paymentCurrency)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Platform fee</p>
-                    <p className="font-medium">
-                      {formatCurrency(payment.platformFeeAmount, paymentCurrency)}
-                    </p>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Captured at</p>
+                    <p className="font-medium">{payment.capturedAt ? format(new Date(payment.capturedAt), "P p", {locale: enAU}) : "—"}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Net to salon</p>
-                    <p className="font-medium">
-                      {formatCurrency(payment.netAmount, paymentCurrency)}
-                    </p>
+                    <p className="font-medium">{formatCurrency(payment.netAmount, paymentCurrency)}</p>
                   </div>
                   {payment.stripeFeeAmount !== null && payment.stripeFeeAmount !== undefined && (
                     <div>
-                      <p className="text-xs text-gray-500 uppercase tracking-wide">Stripe fees</p>
-                      <p className="font-medium">
-                        {formatCurrency(payment.stripeFeeAmount, paymentCurrency)}
-                      </p>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">Fees</p>
+                      <p className="font-medium">{formatCurrency(payment.stripeFeeAmount, paymentCurrency)}</p>
                     </div>
                   )}
                 </div>
 
                 <div className="flex flex-col gap-2 pt-1 sm:flex-row">
                   {stripeDashboardUrl && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      asChild
-                      className="sm:flex-1"
-                    >
+                    <Button variant="outline" size="sm" asChild className="sm:flex-1">
                       <a
                         href={stripeDashboardUrl}
                         target="_blank"
@@ -556,7 +534,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                       className="sm:flex-1"
                     >
                       <RotateCcwIcon className="h-4 w-4 mr-2" />
-                      {isRefunding ? 'Processing refund...' : 'Refund payment'}
+                      {isRefunding ? "Processing refund..." : "Refund payment"}
                     </Button>
                   )}
                 </div>
@@ -574,7 +552,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               <UsersIcon className="h-4 w-4 text-gray-500" />
               <span className="font-medium text-sm">Assigned Staff</span>
             </div>
-            
+
             {isEditing ? (
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-2">
@@ -587,48 +565,40 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                   >
                     No staff assigned
                   </Button>
-                  
+
                   {/* Staff options or loading skeletons */}
-                  {loadingStaff ? (
-                    // Loading skeletons
-                    Array.from({ length: 2 }).map((_, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center space-x-2 px-3 py-2 border border-gray-200 rounded-md bg-gray-50 animate-pulse"
-                      >
-                        <div className="w-3 h-3 rounded-full bg-gray-300"></div>
-                        <div className="h-4 bg-gray-300 rounded w-16"></div>
-                      </div>
-                    ))
-                  ) : (
-                    // Actual staff buttons
-                    staffList.map((staff) => (
-                      <Button
-                        key={staff.id}
-                        type="button"
-                        variant={formData.assignedStaffId === staff.id ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setFormData({ ...formData, assignedStaffId: staff.id })}
-                        className="flex items-center space-x-2"
-                      >
-                        <div 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: staff.color }}
-                        />
-                        <span>{staff.user.name}</span>
-                      </Button>
-                    ))
-                  )}
+                  {loadingStaff
+                    ? // Loading skeletons
+                      Array.from({ length: 2 }).map((_, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center space-x-2 px-3 py-2 border border-gray-200 rounded-md bg-gray-50 animate-pulse"
+                        >
+                          <div className="w-3 h-3 rounded-full bg-gray-300"></div>
+                          <div className="h-4 bg-gray-300 rounded w-16"></div>
+                        </div>
+                      ))
+                    : // Actual staff buttons
+                      staffList.map((staff) => (
+                        <Button
+                          key={staff.id}
+                          type="button"
+                          variant={formData.assignedStaffId === staff.id ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setFormData({ ...formData, assignedStaffId: staff.id })}
+                          className="flex items-center space-x-2"
+                        >
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: staff.color }} />
+                          <span>{staff.user.name}</span>
+                        </Button>
+                      ))}
                 </div>
               </div>
             ) : (
               <div className="py-2">
                 {appointment.assignedStaff ? (
                   <div className="flex items-center space-x-2">
-                    <div 
-                      className="w-3 h-3 rounded-full" 
-                      style={{ backgroundColor: appointment.assignedStaff.color }}
-                    />
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: appointment.assignedStaff.color }} />
                     <span className="text-sm">{appointment.assignedStaff.user.name}</span>
                   </div>
                 ) : (
@@ -644,7 +614,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               <UserIcon className="h-4 w-4 text-gray-500" />
               <span className="font-medium text-sm">Client Information</span>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="firstName">First Name</Label>
@@ -667,7 +637,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                     onChange={(e) => setFormData({ ...formData, clientLastName: e.target.value })}
                   />
                 ) : (
-                  <p className="text-sm py-2">{formData.clientLastName || 'N/A'}</p>
+                  <p className="text-sm py-2">{formData.clientLastName || "N/A"}</p>
                 )}
               </div>
             </div>
@@ -684,7 +654,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               ) : (
                 <div className="flex items-center space-x-2 text-sm py-2">
                   <MailIcon className="h-3 w-3 text-gray-500" />
-                  <span>{formData.clientEmail || 'N/A'}</span>
+                  <span>{formData.clientEmail || "N/A"}</span>
                 </div>
               )}
             </div>
@@ -700,7 +670,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               ) : (
                 <div className="flex items-center space-x-2 text-sm py-2">
                   <PhoneIcon className="h-3 w-3 text-gray-500" />
-                  <span>{formData.clientPhone || 'N/A'}</span>
+                  <span>{formData.clientPhone || "N/A"}</span>
                 </div>
               )}
             </div>
@@ -715,11 +685,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                   <div>
                     <span className="font-medium">{item.serviceName}</span>
                     <span className="text-gray-500 ml-2">({item.durationMinutes} min)</span>
-                    {item.service?.category?.name && (
-                      <span className="text-gray-400 text-xs ml-2">
-                        - {item.service.category.name}
-                      </span>
-                    )}
+                    {item.service?.category?.name && <span className="text-gray-400 text-xs ml-2">- {item.service.category.name}</span>}
                   </div>
                   <span className="font-medium">${(item.priceCents / 100).toFixed(2)}</span>
                 </div>
@@ -747,9 +713,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             ) : (
-              <p className="text-sm py-2 text-gray-600">
-                {formData.notes || 'No notes added'}
-              </p>
+              <p className="text-sm py-2 text-gray-600">{formData.notes || "No notes added"}</p>
             )}
           </div>
 
@@ -764,58 +728,37 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
           <div className="flex flex-col space-y-2 pt-4">
             {isEditing ? (
               <div className="flex space-x-2">
-                <Button 
-                  onClick={handleSave} 
-                  disabled={isSaving || isRefunding}
-                  className="flex-1"
-                >
-                  {isSaving ? 'Saving...' : 'Save Changes'}
+                <Button onClick={handleSave} disabled={isSaving || isRefunding} className="flex-1">
+                  {isSaving ? "Saving..." : "Save Changes"}
                 </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={handleCancel}
-                  disabled={isSaving || isRefunding}
-                >
+                <Button variant="outline" onClick={handleCancel} disabled={isSaving || isRefunding}>
                   Cancel
                 </Button>
               </div>
             ) : (
               <div className="flex flex-col space-y-2">
-                {formData.status === 'PENDING' && (
+                {formData.status === "PENDING" && (
                   <div className="flex flex-col sm:flex-row sm:space-x-2 space-y-2 sm:space-y-0">
-                    <Button
-                      onClick={() => handleStatusUpdate('CONFIRMED')}
-                      disabled={isSaving || isRefunding}
-                      className="flex-1"
-                    >
-                      {pendingStatusAction === 'CONFIRMED' ? 'Confirming...' : 'Confirm Appointment'}
+                    <Button onClick={() => handleStatusUpdate("CONFIRMED")} disabled={isSaving || isRefunding} className="flex-1">
+                      {pendingStatusAction === "CONFIRMED" ? "Confirming..." : "Confirm Appointment"}
                     </Button>
                     <Button
                       variant="destructive"
-                      onClick={() => handleStatusUpdate('DECLINED')}
+                      onClick={() => handleStatusUpdate("DECLINED")}
                       disabled={isSaving || isRefunding}
                       className="flex-1"
                     >
-                      {pendingStatusAction === 'DECLINED' ? 'Declining...' : 'Decline Appointment'}
+                      {pendingStatusAction === "DECLINED" ? "Declining..." : "Decline Appointment"}
                     </Button>
                   </div>
                 )}
-                <Button
-                  onClick={() => setIsEditing(true)}
-                  className="w-full"
-                  disabled={isRefunding}
-                >
+                <Button onClick={() => setIsEditing(true)} className="w-full" disabled={isRefunding}>
                   Edit Appointment
                 </Button>
-                {formData.status !== 'CANCELED' && formData.status !== 'DECLINED' && (
-                  <Button 
-                    variant="destructive" 
-                    onClick={handleCancelAppointment}
-                    disabled={isDeleting || isRefunding}
-                    className="w-full"
-                  >
+                {formData.status !== "CANCELED" && formData.status !== "DECLINED" && (
+                  <Button variant="destructive" onClick={handleCancelAppointment} disabled={isDeleting || isRefunding} className="w-full">
                     <Trash2Icon className="h-4 w-4 mr-2" />
-                    {isDeleting ? 'Cancelling...' : 'Cancel Appointment'}
+                    {isDeleting ? "Cancelling..." : "Cancel Appointment"}
                   </Button>
                 )}
               </div>
@@ -824,7 +767,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
         </div>
       </DialogContent>
     </Dialog>
-  )
-}
+  );
+};
 
-export default AppointmentDetailModal
+export default AppointmentDetailModal;

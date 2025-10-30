@@ -151,7 +151,7 @@ const CalendarDayView: React.FC<CalendarDayViewProps> = ({
           </Button>
         </div>
         <h2 className="text-lg font-semibold">
-          {format(selectedDate, 'EEEE, MMMM d, yyyy')}
+          {format(selectedDate, 'EEEE, dd/MM/yyyy')}
         </h2>
       </div>
 
