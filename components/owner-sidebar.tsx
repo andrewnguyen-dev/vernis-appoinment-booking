@@ -80,7 +80,7 @@ export function OwnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
       <SidebarHeader>
         <div className="flex items-center gap-2 px-2 py-2">
           <Calendar className="h-6 w-6" />
-          <span className="font-semibold text-lg">Looma</span>
+          <span className="font-semibold text-lg">Vernis</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
