@@ -136,6 +136,7 @@ export async function updateAppointment(data: UpdateAppointmentData) {
                 select: {
                   id: true,
                   name: true,
+                  description: true,
                   category: {
                     select: {
                       name: true,
@@ -284,6 +285,7 @@ export async function updateAppointmentTime(data: UpdateAppointmentTimeData) {
               select: {
                 id: true,
                 name: true,
+                description: true,
                 category: {
                   select: {
                     name: true,
@@ -510,6 +512,7 @@ export async function getAppointmentById(appointmentId: string) {
               select: {
                 id: true,
                 name: true,
+                description: true,
                 category: {
                   select: {
                     name: true,

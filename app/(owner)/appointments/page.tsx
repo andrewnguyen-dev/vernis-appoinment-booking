@@ -47,6 +47,7 @@ async function getUpcomingAppointments(salonId: string, salonTimeZone: string): 
             select: {
               id: true,
               name: true,
+              description: true,
               category: {
                 select: {
                   name: true,

@@ -225,6 +225,7 @@ model Service {
   salonId         String
   categoryId      String?
   name            String
+  description     String?
   durationMinutes Int
   priceCents      Int     @default(0)
   active          Boolean @default(true)

@@ -187,6 +187,7 @@ export default async function DashboardPage() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
+          <p className="text-muted-foreground italic text-sm">This feature is in development. The numbers below are placeholders.</p>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -196,8 +197,8 @@ export default async function DashboardPage() {
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">8</div>
-                <p className="text-xs text-muted-foreground">+2 from yesterday</p>
+                <div className="text-2xl font-bold">0</div>
+                <p className="text-xs text-muted-foreground">+0 from yesterday</p>
               </CardContent>
             </Card>
 
@@ -209,7 +210,7 @@ export default async function DashboardPage() {
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">$1,420</div>
+                <div className="text-2xl font-bold">$0,000</div>
                 <p className="text-xs text-muted-foreground">+15% from yesterday</p>
               </CardContent>
             </Card>
@@ -220,8 +221,8 @@ export default async function DashboardPage() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">127</div>
-                <p className="text-xs text-muted-foreground">+3 new this week</p>
+                <div className="text-2xl font-bold">000</div>
+                <p className="text-xs text-muted-foreground">+0 new this week</p>
               </CardContent>
             </Card>
 
@@ -233,8 +234,8 @@ export default async function DashboardPage() {
                 <Clock className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">45m</div>
-                <p className="text-xs text-muted-foreground">-2m from last week</p>
+                <div className="text-2xl font-bold">00m</div>
+                <p className="text-xs text-muted-foreground">-0m from last week</p>
               </CardContent>
             </Card>
           </div>

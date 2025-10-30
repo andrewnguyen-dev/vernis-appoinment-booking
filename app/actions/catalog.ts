@@ -252,6 +252,7 @@ export async function createService(data: CreateServiceData) {
         categoryId: validatedData.categoryId || null,
         durationMinutes: validatedData.durationMinutes,
         priceCents: validatedData.priceCents,
+        description: validatedData.description?.trim() || null,
         active: validatedData.active,
       },
       include: {
@@ -343,6 +344,7 @@ export async function updateService(data: UpdateServiceData) {
         categoryId: validatedData.categoryId || null,
         durationMinutes: validatedData.durationMinutes,
         priceCents: validatedData.priceCents,
+        description: validatedData.description?.trim() || null,
         active: validatedData.active,
       },
       include: {
@@ -501,6 +503,15 @@ export async function getCatalogData() {
       include: {
         services: {
           orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            durationMinutes: true,
+            priceCents: true,
+            active: true,
+            categoryId: true,
+          },
         },
       },
       orderBy: { order: "asc" },
@@ -510,6 +521,15 @@ export async function getCatalogData() {
       where: {
         salonId: salon.id,
         categoryId: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        durationMinutes: true,
+        priceCents: true,
+        active: true,
+        categoryId: true,
       },
       orderBy: { name: "asc" },
     });

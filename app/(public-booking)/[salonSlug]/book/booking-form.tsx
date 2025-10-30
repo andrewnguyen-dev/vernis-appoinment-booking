@@ -16,6 +16,7 @@ import toast from "react-hot-toast";
 type Service = {
   id: string;
   name: string;
+  description: string | null;
   durationMinutes: number;
   priceCents: number;
 };
@@ -211,14 +212,19 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
                           checked={selectedServices.has(service.id)}
                           onCheckedChange={() => handleServiceToggle(service.id)}
                         />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium">
-                            {service.name}
-                          </div>
-                          <div className="flex items-center justify-between mt-1">
-                            <span className="text-xs text-muted-foreground">
-                              {service.durationMinutes} minutes
-                            </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium">
+                          {service.name}
+                        </div>
+                        {service.description && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {service.description}
+                          </p>
+                        )}
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-xs text-muted-foreground">
+                            {service.durationMinutes} minutes
+                          </span>
                             <span className="text-sm font-semibold">
                               {formatMoney(service.priceCents)}
                             </span>

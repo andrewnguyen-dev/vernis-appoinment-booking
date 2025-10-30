@@ -160,6 +160,7 @@ export async function createBookingCheckoutSession(
             unit_amount: service.priceCents,
             product_data: {
               name: service.name,
+              description: service.description ?? undefined,
             },
           },
         })),

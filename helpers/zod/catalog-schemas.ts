@@ -22,6 +22,7 @@ export const createServiceSchema = z.object({
   categoryId: z.string().optional(),
   durationMinutes: z.number().int().min(1, "Duration must be at least 1 minute").max(480, "Duration cannot exceed 8 hours"),
   priceCents: z.number().int().min(0, "Price must be non-negative"),
+  description: z.string().max(500, "Description must be less than 500 characters").optional(),
   active: z.boolean().default(true),
 });
 
@@ -31,6 +32,7 @@ export const updateServiceSchema = z.object({
   categoryId: z.string().optional(),
   durationMinutes: z.number().int().min(1, "Duration must be at least 1 minute").max(480, "Duration cannot exceed 8 hours"),
   priceCents: z.number().int().min(0, "Price must be non-negative"),
+  description: z.string().max(500, "Description must be less than 500 characters").optional(),
   active: z.boolean(),
 });
 

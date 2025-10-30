@@ -10,8 +10,11 @@ import {
   LayoutDashboard,
   UserCog,
   Settings,
-  CircleDollarSign
+  CircleDollarSign,
+  LogOut
 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { signOut } from "@/lib/auth-client"
 
 import {
   Sidebar,
@@ -23,6 +26,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarFooter,
   SidebarRail,
 } from "@/components/ui/sidebar"
 
@@ -74,6 +78,17 @@ const navItems = [
 
 export function OwnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const router = useRouter()
+
+  const handleLogout = React.useCallback(async () => {
+    await signOut({
+      fetchOptions: {
+        onSuccess: () => {
+          router.push("/sign-in")
+        },
+      },
+    })
+  }, [router])
 
   return (
     <Sidebar {...props}>
@@ -107,6 +122,20 @@ export function OwnerSidebar({ ...props }: React.ComponentProps<typeof Sidebar>)
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="mt-auto">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              type="button"
+              onClick={handleLogout}
+              className=""
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Logout</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

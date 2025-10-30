@@ -21,6 +21,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -43,6 +44,7 @@ interface ServiceFormProps {
     durationMinutes: number;
     priceCents: number;
     active: boolean;
+    description: string | null;
   };
   categories: Array<{
     id: string;
@@ -63,6 +65,7 @@ export function ServiceForm({ open, onOpenChange, service, categories, onSuccess
       durationMinutes: 30,
       priceCents: 0,
       active: true,
+      description: "",
       ...(isEditing && { id: "" }),
     },
   });
@@ -77,6 +80,7 @@ export function ServiceForm({ open, onOpenChange, service, categories, onSuccess
           durationMinutes: service.durationMinutes,
           priceCents: service.priceCents,
           active: service.active,
+          description: service.description ?? "",
           ...(isEditing && { id: service.id }),
         });
       } else {
@@ -86,6 +90,7 @@ export function ServiceForm({ open, onOpenChange, service, categories, onSuccess
           durationMinutes: 30,
           priceCents: 0,
           active: true,
+          description: "",
         });
       }
     }
@@ -99,6 +104,7 @@ export function ServiceForm({ open, onOpenChange, service, categories, onSuccess
       const submitData = {
         ...data,
         categoryId: data.categoryId === "none" ? undefined : data.categoryId,
+        description: data.description?.trim() ? data.description.trim() : undefined,
       };
 
       const result = isEditing 
@@ -227,6 +233,24 @@ export function ServiceForm({ open, onOpenChange, service, categories, onSuccess
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Optional summary shown to clients"
+                      rows={4}
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

@@ -52,6 +52,7 @@ export interface AppointmentData {
     service?: {
       id: string
       name: string
+      description?: string | null
       category?: {
         name: string
       } | null

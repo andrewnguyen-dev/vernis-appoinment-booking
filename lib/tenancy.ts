@@ -34,6 +34,7 @@ export async function getCatalogForSalon(salonId: string) {
         select: {
           id: true,
           name: true,
+          description: true,
           durationMinutes: true,
           priceCents: true,
         },

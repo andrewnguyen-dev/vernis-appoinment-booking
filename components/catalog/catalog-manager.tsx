@@ -24,6 +24,7 @@ interface Service {
   durationMinutes: number;
   priceCents: number;
   active: boolean;
+  description: string | null;
   category?: {
     name: string;
   } | null;
@@ -83,7 +84,7 @@ export function CatalogManager() {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="sm:grid gap-4 md:grid-cols-2 lg:grid-cols-4 hidden">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Categories</CardTitle>
@@ -135,7 +136,7 @@ export function CatalogManager() {
 
       {/* Catalog Table */}
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="">
           <CatalogTable
             categories={categories}
             uncategorizedServices={uncategorizedServices}

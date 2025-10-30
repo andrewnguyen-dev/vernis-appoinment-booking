@@ -39,6 +39,7 @@ interface Service {
   durationMinutes: number;
   priceCents: number;
   active: boolean;
+  description: string | null;
   category?: {
     name: string;
   } | null;
@@ -121,6 +122,9 @@ export function CatalogTable({ categories, uncategorizedServices, onDataChange }
               {service.active ? "Active" : "Inactive"}
             </Badge>
           </div>
+          {service.description && (
+            <p className="text-sm text-muted-foreground">{service.description}</p>
+          )}
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span>{formatDuration(service.durationMinutes)}</span>
             <span>{formatPrice(service.priceCents)}</span>
@@ -162,6 +166,7 @@ export function CatalogTable({ categories, uncategorizedServices, onDataChange }
       <TableHeader>
         <TableRow>
           <TableHead>Service Name</TableHead>
+          <TableHead>Description</TableHead>
           <TableHead>Duration</TableHead>
           <TableHead>Price</TableHead>
           <TableHead>Status</TableHead>
@@ -172,6 +177,9 @@ export function CatalogTable({ categories, uncategorizedServices, onDataChange }
         {services.map((service) => (
           <TableRow key={service.id}>
             <TableCell className="font-medium">{service.name}</TableCell>
+            <TableCell className="max-w-xs text-sm text-muted-foreground truncate">
+              {service.description || "—"}
+            </TableCell>
             <TableCell>{formatDuration(service.durationMinutes)}</TableCell>
             <TableCell>{formatPrice(service.priceCents)}</TableCell>
             <TableCell>
