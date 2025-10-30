@@ -143,8 +143,8 @@ model Salon {
   stripeRequirementsDue String[]  @default([]) // JSON array of missing requirements
 
   // Application fee configuration (platform revenue)
-  platformFeePercent  Int @default(10) // 10% default
-  platformFeeMinCents Int @default(50) // $0.50 minimum
+  platformFeePercent  Int @default(5) // 5% default
+  platformFeeMinCents Int @default(400) // $4.00 minimum
 
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
