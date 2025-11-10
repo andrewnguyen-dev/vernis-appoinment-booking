@@ -24,6 +24,7 @@ export default async function SettingsPage() {
       capacity: salon.capacity,
       logoUrl: salon.logoUrl,
       customDomain: salon.customDomain,
+      capturePercentage: salon.capturePercentage,
     },
     businessHours.map((hours) => ({
       dayOfWeek: hours.dayOfWeek as DayOfWeekValue,

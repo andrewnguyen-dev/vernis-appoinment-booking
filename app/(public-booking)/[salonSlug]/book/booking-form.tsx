@@ -33,6 +33,7 @@ type Salon = {
   timeZone: string;
   slug: string;
   logoUrl: string | null;
+  capturePercentage: number;
 };
 
 type BookingFormProps = {
@@ -66,9 +67,27 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
     0
   );
   const totalPrice = selectedServiceData.reduce(
-    (sum, service) => sum + service.priceCents, 
-    0
+    (sum, service) => sum + service.priceCents,
+    0,
   );
+
+  const normalizedCapturePercentage = Math.min(Math.max(Math.round(salon.capturePercentage ?? 100), 0), 100);
+  const minStripeChargeCents = 50;
+  let captureAmountCents = 0;
+
+  if (normalizedCapturePercentage >= 100) {
+    captureAmountCents = totalPrice;
+  } else if (normalizedCapturePercentage > 0) {
+    captureAmountCents = Math.round((totalPrice * normalizedCapturePercentage) / 100);
+    if (captureAmountCents > totalPrice) {
+      captureAmountCents = totalPrice;
+    }
+    if (captureAmountCents > 0 && captureAmountCents < minStripeChargeCents) {
+      captureAmountCents = Math.min(totalPrice, minStripeChargeCents);
+    }
+  }
+
+  const remainingBalanceCents = Math.max(totalPrice - captureAmountCents, 0);
 
   const handleServiceToggle = (serviceId: string) => {
     const newSelected = new Set(selectedServices);
@@ -241,11 +260,19 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
               <div className="border-t pt-4">
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium">
-                    Total ({selectedServices.size} service{selectedServices.size > 1 ? 's' : ''})
+                    Total ({selectedServices.size} service{selectedServices.size > 1 ? "s" : ""})
                   </span>
-                  <div className="text-right">
+                  <div className="text-right space-y-0.5">
                     <div className="font-semibold">{formatMoney(totalPrice)}</div>
                     <div className="text-muted-foreground">{totalDuration} minutes</div>
+                    <div className="text-xs text-muted-foreground">
+                      Due now ({normalizedCapturePercentage}%): {formatMoney(captureAmountCents)}
+                    </div>
+                    {remainingBalanceCents > 0 && (
+                      <div className="text-xs text-muted-foreground">
+                        Due later ({Math.max(0, 100 - normalizedCapturePercentage)}%): {formatMoney(remainingBalanceCents)}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -394,6 +421,12 @@ export function BookingForm({ salon, categories }: BookingFormProps) {
                 <div>Time: {selectedTime} ({formatTimezone(salon.timeZone)})</div>
                 <div>Duration: {totalDuration} minutes</div>
                 <div className="font-semibold">Total: {formatMoney(totalPrice)}</div>
+                <div>Due now ({normalizedCapturePercentage}%): {formatMoney(captureAmountCents)}</div>
+                {remainingBalanceCents > 0 && (
+                  <div>
+                    Due at appointment ({Math.max(0, 100 - normalizedCapturePercentage)}%): {formatMoney(remainingBalanceCents)}
+                  </div>
+                )}
               </div>
             </div>
 

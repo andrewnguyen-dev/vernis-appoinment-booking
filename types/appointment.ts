@@ -1,4 +1,4 @@
-import type { PaymentProvider, PaymentStatus } from '@prisma/client'
+import type { PaymentKind, PaymentProvider, PaymentStatus } from '@prisma/client'
 
 export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'DECLINED' | 'CANCELED' | 'COMPLETED'
 
@@ -8,6 +8,7 @@ export interface AppointmentPaymentData {
   provider: PaymentProvider
   amountCents: number
   currency: string
+  kind: PaymentKind
   platformFeeAmount: number | null
   netAmount: number | null
   stripeFeeAmount: number | null
@@ -28,6 +29,7 @@ export interface AppointmentData {
   endsAtLocal: Date
   status: AppointmentStatus
   notes?: string | null
+  capturePercentage: number
   client: {
     id: string
     firstName: string
@@ -64,6 +66,7 @@ export interface AppointmentData {
     email: string
   } | null
   payment?: AppointmentPaymentData | null
+  payments?: AppointmentPaymentData[]
 }
 
 export interface AppointmentUpdateData {

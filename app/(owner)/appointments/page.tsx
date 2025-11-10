@@ -69,9 +69,8 @@ async function getUpcomingAppointments(salonId: string, salonTimeZone: string): 
       },
       payments: {
         orderBy: {
-          createdAt: "desc",
+          createdAt: "asc",
         },
-        take: 1,
       },
     },
     orderBy: {
@@ -82,7 +81,8 @@ async function getUpcomingAppointments(salonId: string, salonTimeZone: string): 
   // Convert appointment times to salon timezone for display
   return appointments.map(({ payments, ...appointment }) => ({
     ...appointment,
-    payment: payments[0] ?? null,
+    payment: payments.length > 0 ? payments[payments.length - 1] : null,
+    payments,
     startsAtLocal: toZonedTime(appointment.startsAt, salonTimeZone),
     endsAtLocal: toZonedTime(appointment.endsAt, salonTimeZone),
   }));

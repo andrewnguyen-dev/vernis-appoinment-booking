@@ -16,6 +16,7 @@ export async function getSalonBySlug(slug: string) {
       stripeRequirementsDue: true,
       platformFeePercent: true,
       platformFeeMinCents: true,
+      capturePercentage: true,
     },
   });
 }

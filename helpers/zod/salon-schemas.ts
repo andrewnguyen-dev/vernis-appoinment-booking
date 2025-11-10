@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 // Salon Settings Schema
+
 export const updateSalonSchema = z.object({
   name: z.string()
     .min(1, "Salon name is required")
@@ -30,6 +31,11 @@ export const updateSalonSchema = z.object({
     .regex(/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, "Invalid domain format")
     .optional()
     .or(z.literal("")),
+
+  capturePercentage: z.number()
+    .int("Capture percentage must be a whole number")
+    .min(0, "Capture percentage cannot be less than 0%")
+    .max(100, "Capture percentage cannot exceed 100%"),
 });
 
 // Type exports

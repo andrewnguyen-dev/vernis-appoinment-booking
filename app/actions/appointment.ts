@@ -12,6 +12,7 @@ import { bookingFormSchema, type BookingFormData } from "@/helpers/zod/booking-s
 interface CreateAppointmentOptions {
   skipAvailabilityCheck?: boolean;
   revalidate?: boolean;
+  capturePercentage?: number;
 }
 
 interface AppointmentCreationContext {
@@ -155,6 +156,7 @@ export async function createAppointmentRecord(
         endsAt: context.appointmentEndTime,
         status: "PENDING",
         notes: validatedData.customer.notes || null,
+        capturePercentage: options.capturePercentage ?? 100,
       },
     });
 

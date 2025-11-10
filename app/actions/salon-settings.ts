@@ -93,6 +93,7 @@ export async function updateSalonSettings(data: OwnerOnboardingInput): Promise<S
           capacity: fieldErrors.capacity?.[0],
           logoUrl: fieldErrors.logoUrl?.[0],
           customDomain: fieldErrors.customDomain?.[0],
+          capturePercentage: fieldErrors.capturePercentage?.[0],
           businessHours: fieldErrors.businessHours?.[0],
         },
       };

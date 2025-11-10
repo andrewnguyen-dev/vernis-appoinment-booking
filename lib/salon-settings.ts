@@ -8,6 +8,7 @@ interface SalonBasics {
   capacity: number | null;
   logoUrl: string | null;
   customDomain: string | null;
+  capturePercentage: number | null;
 }
 
 interface ExistingBusinessHours {
@@ -40,6 +41,7 @@ export function buildSalonSettingsInitialValues(
     capacity: salon.capacity ?? 1,
     logoUrl: salon.logoUrl ?? "",
     customDomain: salon.customDomain ?? "",
+    capturePercentage: salon.capturePercentage ?? 100,
     businessHours: dayOfWeekValues.map((day) => {
       const saved = hoursMap.get(day);
       const fallback = defaultHours[day];

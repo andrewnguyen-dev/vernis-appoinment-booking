@@ -1,6 +1,6 @@
 "use server";
 
-import { AppointmentStatus, PaymentProvider, PaymentStatus } from "@prisma/client";
+import { AppointmentStatus, PaymentKind, PaymentProvider, PaymentStatus } from "@prisma/client";
 import Stripe from "stripe";
 
 import prisma from "@/db";
@@ -21,6 +21,7 @@ export interface PaymentProcessingResult {
   appointmentId: string;
   status: PaymentStatus;
   amountCents: number;
+  kind: PaymentKind;
   stripeFeeAmount: number | null;
   platformFeeAmount: number | null;
   netAmount: number | null;
@@ -177,6 +178,7 @@ async function upsertStripePaymentRecord(
         netAmount: null,
         stripeRefundId: null,
         connectedAccountId: appointment.salon.stripeAccountId,
+        kind: PaymentKind.FULL_PAYMENT,
       },
     });
 
@@ -199,6 +201,7 @@ async function upsertStripePaymentRecord(
       netAmount: null,
       stripeRefundId: null,
       connectedAccountId: appointment.salon.stripeAccountId,
+      kind: PaymentKind.FULL_PAYMENT,
     },
   });
 
@@ -296,6 +299,7 @@ interface HandlePaymentOptions {
   stripeAccountId?: string;
   salonId?: string;
   expectedAmountCents?: number;
+  paymentKind?: PaymentKind;
 }
 
 export async function handleSuccessfulPayment(
@@ -324,6 +328,8 @@ export async function handleSuccessfulPayment(
   if (!stripeAccountId) {
     throw new Error("Connected account information is missing for this payment.");
   }
+
+  const resolvedKind: PaymentKind = options.paymentKind ?? payment?.kind ?? PaymentKind.FULL_PAYMENT;
 
   const stripe = getStripeServerClient();
 
@@ -456,6 +462,7 @@ export async function handleSuccessfulPayment(
         netAmount,
         capturedAt,
         connectedAccountId: stripeAccountId,
+        kind: resolvedKind,
       },
     });
 
@@ -464,6 +471,7 @@ export async function handleSuccessfulPayment(
       appointmentId,
       status: createdPayment.status,
       amountCents: createdPayment.amountCents,
+      kind: resolvedKind,
       stripeFeeAmount,
       platformFeeAmount,
       netAmount,
@@ -486,6 +494,7 @@ export async function handleSuccessfulPayment(
       netAmount,
       capturedAt,
       connectedAccountId: stripeAccountId,
+      kind: resolvedKind,
     },
   });
 
@@ -494,6 +503,7 @@ export async function handleSuccessfulPayment(
     appointmentId: updatedPayment.appointmentId,
     status: updatedPayment.status,
     amountCents: updatedPayment.amountCents,
+    kind: resolvedKind,
     stripeFeeAmount,
     platformFeeAmount,
     netAmount,

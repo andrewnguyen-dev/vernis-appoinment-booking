@@ -82,6 +82,7 @@ export async function persistSalonSettings(
         capacity: validatedData.capacity,
         logoUrl: normalizedLogoUrl,
         customDomain: normalizedCustomDomain,
+        capturePercentage: validatedData.capturePercentage,
         hasCompletedOnboarding: options.markOnboardingComplete ? true : salon.hasCompletedOnboarding,
         updatedAt: new Date(),
       },

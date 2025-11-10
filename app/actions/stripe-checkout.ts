@@ -3,6 +3,8 @@
 import crypto from "node:crypto";
 
 import prisma from "@/db";
+import { formatInTimeZone } from "date-fns-tz";
+import { PaymentKind, PaymentProvider, PaymentStatus } from "@prisma/client";
 import { z } from "zod";
 import { bookingFormSchema, type BookingFormData } from "@/helpers/zod/booking-schema";
 import { getSalonBySlug } from "@/lib/tenancy";
@@ -19,7 +21,18 @@ export interface CreateBookingSessionResult {
   error?: string;
 }
 
-function serializeMetadata(booking: BookingFormData, totalDuration: number, totalPrice: number): string {
+interface MetadataExtras {
+  capturePercentage: number;
+  captureAmountCents: number;
+  remainingBalanceCents: number;
+}
+
+function serializeMetadata(
+  booking: BookingFormData,
+  totalDuration: number,
+  totalPrice: number,
+  extras: MetadataExtras,
+): string {
   const payload = {
     salonSlug: booking.salonSlug,
     serviceIds: booking.serviceIds,
@@ -27,6 +40,9 @@ function serializeMetadata(booking: BookingFormData, totalDuration: number, tota
     time: booking.time,
     totalDuration,
     totalPrice,
+    capturePercentage: extras.capturePercentage,
+    captureAmountCents: extras.captureAmountCents,
+    remainingBalanceCents: extras.remainingBalanceCents,
     customer: {
       firstName: booking.customer.firstName,
       lastName: booking.customer.lastName ?? null,
@@ -46,6 +62,9 @@ interface BookingMetadataPayload {
   time: string;
   totalDuration: number;
   totalPrice: number;
+  capturePercentage: number;
+  captureAmountCents: number;
+  remainingBalanceCents: number;
   customer: {
     firstName: string;
     lastName: string | null;
@@ -62,11 +81,46 @@ function decodeMetadata(payload?: string | null): BookingMetadataPayload | null 
 
   try {
     const json = Buffer.from(payload, "base64").toString("utf-8");
-    return JSON.parse(json) as BookingMetadataPayload;
+    const data = JSON.parse(json) as BookingMetadataPayload;
+
+    return {
+      ...data,
+      capturePercentage: data.capturePercentage ?? 100,
+      captureAmountCents: data.captureAmountCents ?? data.totalPrice,
+      remainingBalanceCents: data.remainingBalanceCents ?? 0,
+    };
   } catch (error) {
     console.error("Failed to decode booking metadata:", error);
     return null;
   }
+}
+
+async function syncClientBillingDetails(
+  clientId: string,
+  customerId?: string | null,
+  paymentMethodId?: string | null,
+): Promise<void> {
+  const updateData: {
+    stripeCustomerId?: string;
+    stripeDefaultPaymentMethodId?: string;
+  } = {};
+
+  if (customerId) {
+    updateData.stripeCustomerId = customerId;
+  }
+
+  if (paymentMethodId) {
+    updateData.stripeDefaultPaymentMethodId = paymentMethodId;
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return;
+  }
+
+  await prisma.client.update({
+    where: { id: clientId },
+    data: updateData,
+  });
 }
 
 export async function createBookingCheckoutSession(
@@ -141,19 +195,95 @@ export async function createBookingCheckoutSession(
       baseUrl,
     );
 
-    const platformFeeAmount = calculatePlatformFee(totalPrice, {
-      platformFeePercent: salon.platformFeePercent,
-      platformFeeMinCents: salon.platformFeeMinCents,
+    const normalizedCapturePercentage = Math.min(Math.max(salon.capturePercentage ?? 100, 0), 100);
+    const minStripeChargeCents = 50;
+    let captureAmountCents: number;
+
+    if (normalizedCapturePercentage >= 100) {
+      captureAmountCents = totalPrice;
+    } else if (normalizedCapturePercentage <= 0) {
+      captureAmountCents = 0;
+    } else {
+      captureAmountCents = Math.round((totalPrice * normalizedCapturePercentage) / 100);
+
+      if (captureAmountCents > totalPrice) {
+        captureAmountCents = totalPrice;
+      }
+
+      if (captureAmountCents > 0 && captureAmountCents < minStripeChargeCents) {
+        captureAmountCents = Math.min(totalPrice, minStripeChargeCents);
+      }
+    }
+
+    const remainingBalanceCents = Math.max(totalPrice - captureAmountCents, 0);
+    const bookingToken = crypto.randomUUID();
+    const metadataPayload = serializeMetadata(validatedData, totalDuration, totalPrice, {
+      capturePercentage: normalizedCapturePercentage,
+      captureAmountCents,
+      remainingBalanceCents,
     });
 
-    const metadataPayload = serializeMetadata(validatedData, totalDuration, totalPrice);
-    const bookingToken = crypto.randomUUID();
+    const sessionMetadata = {
+      booking_payload: metadataPayload,
+      booking_token: bookingToken,
+      salon_id: salon.id,
+      salon_slug: salon.slug,
+    } satisfies Record<string, string>;
 
     const stripe = getStripeServerClient();
-    const session = await stripe.checkout.sessions.create(
-      {
-        mode: "payment",
-        line_items: services.map((service) => ({
+
+    if (captureAmountCents === 0) {
+      const session = await stripe.checkout.sessions.create(
+        {
+          mode: "setup",
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          client_reference_id: bookingToken,
+          metadata: sessionMetadata,
+          customer_email: validatedData.customer.email ?? undefined,
+          customer_creation: "always",
+          setup_intent_data: {
+            metadata: sessionMetadata,
+          },
+        },
+        {
+          stripeAccount: salon.stripeAccountId,
+        },
+      );
+
+      return {
+        success: true,
+        sessionUrl: session.url ?? undefined,
+      };
+    }
+
+    const platformFeeAmount = captureAmountCents > 0
+      ? calculatePlatformFee(captureAmountCents, {
+          platformFeePercent: salon.platformFeePercent,
+          platformFeeMinCents: salon.platformFeeMinCents,
+        })
+      : 0;
+
+    const paymentIntentData: {
+      application_fee_amount?: number;
+      metadata: Record<string, string>;
+      setup_future_usage?: "off_session";
+    } = {
+      metadata: sessionMetadata,
+    };
+
+    if (platformFeeAmount > 0) {
+      paymentIntentData.application_fee_amount = platformFeeAmount;
+    }
+
+    if (normalizedCapturePercentage < 100) {
+      paymentIntentData.setup_future_usage = "off_session";
+    }
+
+    const serviceSummary = services.map((service) => service.name).join(", ");
+
+    const lineItems = normalizedCapturePercentage >= 100
+      ? services.map((service) => ({
           quantity: 1,
           price_data: {
             currency: "aud",
@@ -163,22 +293,27 @@ export async function createBookingCheckoutSession(
               description: service.description ?? undefined,
             },
           },
-        })),
-        payment_intent_data: {
-          application_fee_amount: platformFeeAmount,
-          metadata: {
-            booking_payload: metadataPayload,
-            booking_token: bookingToken,
-            salon_id: salon.id,
-            salon_slug: salon.slug,
+        }))
+      : [
+          {
+            quantity: 1,
+            price_data: {
+              currency: "aud",
+              unit_amount: captureAmountCents,
+              product_data: {
+                name: `Booking deposit (${normalizedCapturePercentage}% due now)`,
+                description: serviceSummary ? `Services: ${serviceSummary}` : undefined,
+              },
+            },
           },
-        },
-        metadata: {
-          booking_payload: metadataPayload,
-          booking_token: bookingToken,
-          salon_id: salon.id,
-          salon_slug: salon.slug,
-        },
+        ];
+
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: "payment",
+        line_items: lineItems,
+        payment_intent_data: paymentIntentData,
+        metadata: sessionMetadata,
         client_reference_id: bookingToken,
         success_url: successUrl,
         cancel_url: cancelUrl,
@@ -265,19 +400,91 @@ export async function finalizeBookingCheckoutSession(
     const session = await stripe.checkout.sessions.retrieve(
       sessionId,
       {
-        expand: ["payment_intent"],
+        expand: ["payment_intent", "setup_intent"],
       },
       {
         stripeAccount: salon.stripeAccountId,
       },
     );
 
-    const metadata = decodeMetadata(
+    const paymentKindMetadata =
+      (session.metadata?.payment_kind as PaymentKind | undefined) ??
+      (typeof session.payment_intent !== "string"
+        ? (session.payment_intent?.metadata?.payment_kind as PaymentKind | undefined)
+        : undefined);
+
+    const appointmentIdFromMetadata =
+      session.metadata?.appointment_id ??
+      (typeof session.payment_intent !== "string"
+        ? session.payment_intent?.metadata?.appointment_id
+        : undefined);
+
+    if (paymentKindMetadata === PaymentKind.REMAINING_BALANCE) {
+      const appointmentRecord = existingPayment?.appointment ??
+        (appointmentIdFromMetadata
+          ? await prisma.appointment.findUnique({
+              where: { id: appointmentIdFromMetadata },
+              include: {
+                items: true,
+                client: true,
+              },
+            })
+          : null);
+
+      if (!appointmentRecord) {
+        return {
+          success: false,
+          error: "We couldn’t locate the appointment for this balance payment.",
+          recoverable: false,
+        };
+      }
+
+      await handleSuccessfulPayment(sessionId, {
+        appointmentId: appointmentRecord.id,
+        stripeAccountId: salon.stripeAccountId,
+        salonId: salon.id,
+        expectedAmountCents: session.amount_total ?? undefined,
+        paymentKind: PaymentKind.REMAINING_BALANCE,
+      });
+
+      const services = appointmentRecord.items
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((item) => item.serviceName);
+
+      const appointmentDate =
+        session.metadata?.appointment_date ??
+        formatInTimeZone(appointmentRecord.startsAt, salon.timeZone, "yyyy-MM-dd");
+      const appointmentTime =
+        session.metadata?.appointment_time ??
+        formatInTimeZone(appointmentRecord.startsAt, salon.timeZone, "HH:mm");
+
+      const durationMinutes = appointmentRecord.items.reduce((sum, item) => sum + item.durationMinutes, 0);
+      const totalPrice = appointmentRecord.items.reduce((sum, item) => sum + item.priceCents, 0);
+
+      const clientName = `${appointmentRecord.client.firstName} ${appointmentRecord.client.lastName ?? ""}`.trim();
+
+      return {
+        success: true,
+        appointmentId: appointmentRecord.id,
+        clientName,
+        date: appointmentDate,
+        time: appointmentTime,
+        services,
+        durationMinutes,
+        totalPrice,
+      };
+    }
+
+    const metadataSource =
       session.metadata?.booking_payload ??
-        (typeof session.payment_intent !== "string"
-          ? session.payment_intent?.metadata?.booking_payload
-          : undefined),
-    );
+      (typeof session.payment_intent !== "string"
+        ? session.payment_intent?.metadata?.booking_payload
+        : undefined) ??
+      (typeof session.setup_intent !== "string"
+        ? session.setup_intent?.metadata?.booking_payload
+        : undefined);
+
+    const metadata = decodeMetadata(metadataSource);
 
     if (!metadata) {
       return { success: false, error: "Checkout session is missing booking details.", recoverable: false };
@@ -313,15 +520,45 @@ export async function finalizeBookingCheckoutSession(
       },
     };
 
-    const appointmentId = existingPayment?.appointmentId;
+    const paymentIntent =
+      typeof session.payment_intent === "string" ? null : session.payment_intent ?? null;
+    const setupIntent = typeof session.setup_intent === "string" ? null : session.setup_intent ?? null;
 
-    if (existingPayment && existingPayment.appointment) {
-      await handleSuccessfulPayment(sessionId, {
-        appointmentId,
-        stripeAccountId: salon.stripeAccountId,
-        salonId: salon.id,
-        expectedAmountCents: metadata.totalPrice,
-      });
+    const sessionMode = session.mode ?? (metadata.captureAmountCents === 0 ? "setup" : "payment");
+    const isPaymentComplete =
+      sessionMode === "payment" && session.status === "complete" && session.payment_status === "paid";
+    const setupStatus = setupIntent?.status ?? null;
+    const isSetupComplete = sessionMode === "setup" && session.status === "complete" && setupStatus === "succeeded";
+
+    const customerId =
+      (typeof paymentIntent?.customer === "string" && paymentIntent.customer) ||
+      (typeof setupIntent?.customer === "string" && setupIntent.customer) ||
+      (typeof session.customer === "string" ? session.customer : undefined);
+    const paymentMethodId =
+      (typeof paymentIntent?.payment_method === "string" && paymentIntent.payment_method) ||
+      (typeof setupIntent?.payment_method === "string" && setupIntent.payment_method) ||
+      undefined;
+
+    const paymentKind = metadata.captureAmountCents === 0
+      ? PaymentKind.SETUP_ONLY
+      : metadata.remainingBalanceCents > 0
+        ? PaymentKind.BOOKING_DEPOSIT
+        : PaymentKind.FULL_PAYMENT;
+
+    if (existingPayment?.appointment) {
+      if (sessionMode === "payment" && isPaymentComplete) {
+        await handleSuccessfulPayment(sessionId, {
+          appointmentId: existingPayment.appointment.id,
+          stripeAccountId: salon.stripeAccountId,
+          salonId: salon.id,
+          expectedAmountCents: metadata.captureAmountCents,
+          paymentKind,
+        });
+      }
+
+      if (customerId || paymentMethodId) {
+        await syncClientBillingDetails(existingPayment.appointment.client.id, customerId, paymentMethodId);
+      }
 
       const clientName = `${existingPayment.appointment.client.firstName} ${existingPayment.appointment.client.lastName ?? ""}`.trim();
       const services = existingPayment.appointment.items
@@ -340,11 +577,52 @@ export async function finalizeBookingCheckoutSession(
       };
     }
 
-    if (session.status !== "complete" || session.payment_status !== "paid") {
+    if (sessionMode === "payment") {
+      if (!isPaymentComplete) {
+        return {
+          success: false,
+          error:
+            "Stripe is still processing this payment. Refresh this page in a few moments or contact the salon if it remains pending.",
+          recoverable: true,
+        };
+      }
+
+      const appointmentResult = await createAppointmentRecord(bookingData, {
+        skipAvailabilityCheck: true,
+        revalidate: false,
+        capturePercentage: metadata.capturePercentage,
+      });
+
+      await handleSuccessfulPayment(sessionId, {
+        appointmentId: appointmentResult.appointment.id,
+        stripeAccountId: salon.stripeAccountId,
+        salonId: salon.id,
+        expectedAmountCents: metadata.captureAmountCents,
+        paymentKind,
+      });
+
+      if (customerId || paymentMethodId) {
+        await syncClientBillingDetails(appointmentResult.client.id, customerId, paymentMethodId);
+      }
+
+      const clientName = `${appointmentResult.client.firstName} ${appointmentResult.client.lastName ?? ""}`.trim();
+
+      return {
+        success: true,
+        appointmentId: appointmentResult.appointment.id,
+        clientName,
+        date: metadata.date,
+        time: metadata.time,
+        services: appointmentResult.services.map((service) => service.name),
+        durationMinutes: metadata.totalDuration,
+        totalPrice: metadata.totalPrice,
+      };
+    }
+
+    if (!isSetupComplete) {
       return {
         success: false,
-        error:
-          "Stripe is still processing this payment. Refresh this page in a few moments or contact the salon if it remains pending.",
+        error: "Stripe is still saving the payment method. Refresh this page shortly or contact the salon if it remains pending.",
         recoverable: true,
       };
     }
@@ -352,13 +630,34 @@ export async function finalizeBookingCheckoutSession(
     const appointmentResult = await createAppointmentRecord(bookingData, {
       skipAvailabilityCheck: true,
       revalidate: false,
+      capturePercentage: metadata.capturePercentage,
     });
 
-    await handleSuccessfulPayment(sessionId, {
-      appointmentId: appointmentResult.appointment.id,
-      stripeAccountId: salon.stripeAccountId,
-      salonId: salon.id,
-      expectedAmountCents: metadata.totalPrice,
+    if (customerId || paymentMethodId) {
+      await syncClientBillingDetails(appointmentResult.client.id, customerId, paymentMethodId);
+    }
+
+    await prisma.payment.upsert({
+      where: { stripeSessionId: session.id },
+      update: {
+        appointmentId: appointmentResult.appointment.id,
+        provider: PaymentProvider.STRIPE,
+        status: PaymentStatus.PENDING,
+        amountCents: 0,
+        currency: session.currency?.toUpperCase() ?? "AUD",
+        kind: PaymentKind.SETUP_ONLY,
+        connectedAccountId: salon.stripeAccountId,
+      },
+      create: {
+        appointmentId: appointmentResult.appointment.id,
+        provider: PaymentProvider.STRIPE,
+        status: PaymentStatus.PENDING,
+        amountCents: 0,
+        currency: session.currency?.toUpperCase() ?? "AUD",
+        kind: PaymentKind.SETUP_ONLY,
+        stripeSessionId: session.id,
+        connectedAccountId: salon.stripeAccountId,
+      },
     });
 
     const clientName = `${appointmentResult.client.firstName} ${appointmentResult.client.lastName ?? ""}`.trim();

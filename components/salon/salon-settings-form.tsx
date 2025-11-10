@@ -31,6 +31,7 @@ import {
   Image as ImageIcon,
   Globe,
   Hash,
+  CreditCard,
 } from "lucide-react";
 
 interface SalonSettingsFormResult {
@@ -89,6 +90,17 @@ export function SalonSettingsForm({
     defaultValues: initialValues,
     mode: "onSubmit",
   });
+
+  const watchedCapturePercentage = form.watch("capturePercentage");
+  const effectiveCapturePercentage = Number.isFinite(watchedCapturePercentage)
+    ? (watchedCapturePercentage as number)
+    : 100;
+  const displayCapturePercentage = Math.min(Math.max(Math.round(effectiveCapturePercentage), 0), 100);
+  const captureDescription = displayCapturePercentage <= 0
+    ? "No card charge at booking—we'll save the client's card for later payment."
+    : displayCapturePercentage >= 100
+      ? "Charge the full amount upfront when clients book."
+      : `Charge a ${displayCapturePercentage}% deposit now and keep the card on file for the remaining ${100 - displayCapturePercentage}% balance.`;
 
   const businessHours = form.watch("businessHours");
 
@@ -236,6 +248,48 @@ export function SalonSettingsForm({
                       />
                     </FormControl>
                     <FormDescription>How many clients can you serve at the same time?</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="capturePercentage"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Due at booking (%)
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={field.value ?? ""}
+                        onChange={(event) => {
+                          if (event.target.value === "") {
+                            field.onChange(undefined);
+                            return;
+                          }
+
+                          const nextValue = event.target.valueAsNumber;
+
+                          if (Number.isNaN(nextValue)) {
+                            field.onChange(undefined);
+                            return;
+                          }
+
+                          const clamped = Math.min(Math.max(Math.round(nextValue), 0), 100);
+                          field.onChange(clamped);
+                        }}
+                        onBlur={field.onBlur}
+                        ref={field.ref}
+                      />
+                    </FormControl>
+                    <FormDescription>{captureDescription}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

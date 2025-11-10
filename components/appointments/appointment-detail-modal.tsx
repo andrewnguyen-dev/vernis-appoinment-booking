@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import QRCode from "react-qr-code";
 import {
   CalendarIcon,
   ClockIcon,
@@ -23,6 +24,7 @@ import {
   CreditCardIcon,
   ExternalLinkIcon,
   RotateCcwIcon,
+  CopyIcon,
 } from "lucide-react";
 import {
   updateAppointment,
@@ -31,6 +33,7 @@ import {
   getSalonStaff,
   refundAppointmentPayment,
 } from "@/app/actions/appointment-management";
+import { chargeAppointmentBalance } from "@/app/actions/appointment-payments";
 import { toast } from "react-hot-toast";
 import type { AppointmentData, AppointmentStatus } from "@/types/appointment";
 
@@ -155,6 +158,8 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRefunding, setIsRefunding] = useState(false);
+  const [isChargingBalance, setIsChargingBalance] = useState(false);
+  const [paymentLinkUrl, setPaymentLinkUrl] = useState<string | null>(null);
   const [pendingStatusAction, setPendingStatusAction] = useState<AppointmentStatus | null>(null);
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [loadingStaff, setLoadingStaff] = useState(false);
@@ -177,9 +182,11 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
       };
       setFormData(nextState);
       setInitialFormData(nextState);
+      setPaymentLinkUrl(null);
     } else {
       setFormData({ ...emptyFormState });
       setInitialFormData({ ...emptyFormState });
+      setPaymentLinkUrl(null);
     }
   }, [appointment]);
 
@@ -217,6 +224,14 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
 
   const totalPrice = appointment.items.reduce((sum, item) => sum + item.priceCents, 0);
   const totalDuration = appointment.items.reduce((sum, item) => sum + item.durationMinutes, 0);
+  const paymentHistory = appointment.payments ?? (payment ? [payment] : []);
+  const totalPaidCents = paymentHistory
+    .filter((entry) => entry.status === "PAID" && entry.kind !== "SETUP_ONLY")
+    .reduce((sum, entry) => sum + entry.amountCents, 0);
+  const remainingBalanceCents = Math.max(totalPrice - totalPaidCents, 0);
+  const depositPayment = paymentHistory.find(
+    (entry) => entry.kind === "BOOKING_DEPOSIT" && entry.status === "PAID",
+  );
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -386,6 +401,61 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     }
   };
 
+  const handleChargeRemainingBalance = async () => {
+    if (remainingBalanceCents <= 0) {
+      toast.success("No remaining balance to charge.");
+      return;
+    }
+
+    setPaymentLinkUrl(null);
+    setIsChargingBalance(true);
+    try {
+      const result = await chargeAppointmentBalance({ appointmentId: appointment.id });
+
+      if (result.paymentLinkUrl) {
+        setPaymentLinkUrl(result.paymentLinkUrl);
+        toast.success("Payment link created. Share it with the client to collect the balance.");
+        setIsChargingBalance(false);
+        return;
+      }
+
+      if (result.success && result.payment) {
+        toast.success("Remaining balance charged successfully.");
+        onSave?.();
+        onClose();
+        return;
+      }
+
+      if (result.requiresAction) {
+        toast.error(
+          result.error ?? "Card requires additional authentication. Send the client a payment link instead.",
+        );
+        return;
+      }
+
+      toast.error(result.error ?? "Failed to charge the remaining balance.");
+    } catch (error) {
+      console.error("Error charging remaining balance:", error);
+      toast.error("Failed to charge the remaining balance.");
+    } finally {
+      setIsChargingBalance(false);
+    }
+  };
+
+  const handleCopyPaymentLink = async () => {
+    if (!paymentLinkUrl) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(paymentLinkUrl);
+      toast.success("Payment link copied to clipboard.");
+    } catch (error) {
+      console.error("Failed to copy payment link:", error);
+      toast.error("Could not copy the payment link. Please copy it manually.");
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md mx-auto max-h-[90vh] overflow-y-auto">
@@ -479,6 +549,71 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               <span className="font-medium text-sm">Payment</span>
             </div>
 
+            <div className="rounded-md bg-muted/40 p-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Total</span>
+                <span className="font-medium">{formatCurrency(totalPrice, paymentCurrency)}</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-muted-foreground">Paid so far</span>
+                <span className="font-medium">{formatCurrency(totalPaidCents, paymentCurrency)}</span>
+              </div>
+              <div className={`mt-1 flex items-center justify-between ${remainingBalanceCents > 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                <span>Remaining</span>
+                <span className="font-medium">{formatCurrency(remainingBalanceCents, paymentCurrency)}</span>
+              </div>
+              {/* {depositPayment ? (
+                <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Deposit collected</span>
+                  <span>{formatCurrency(depositPayment.amountCents, paymentCurrency)}</span>
+                </div>
+              ) : null} */}
+            </div>
+
+            {paymentLinkUrl ? (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium">Payment link ready</p>
+                    <p className="mt-1 flex items-center gap-2 text-xs text-blue-800">
+                      <a
+                        href={paymentLinkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="truncate underline"
+                        title={paymentLinkUrl}
+                      >
+                        {paymentLinkUrl.slice(0, 48)}
+                        {paymentLinkUrl.length > 48 ? "…" : ""}
+                      </a>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className=""
+                        onClick={handleCopyPaymentLink}
+                      >
+                        <CopyIcon className="h-3.5 w-3.5" /> Copy
+                        <span className="sr-only">Copy payment link</span>
+                      </Button>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-col items-center gap-2">
+                  <div className="rounded-lg border border-white/60 bg-white p-3">
+                    <QRCode
+                      value={paymentLinkUrl}
+                      size={128}
+                      style={{ height: "auto", maxWidth: "100%", width: "128px" }}
+                    />
+                  </div>
+                  <p className="text-center text-xs text-blue-800">
+                    Scan to pay the remaining balance.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
             {payment ? (
               <div className="space-y-3 rounded-lg border border-gray-200 bg-white p-3">
                 <div className="flex items-center justify-between">
@@ -511,7 +646,19 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                   )}
                 </div>
 
-                <div className="flex flex-col gap-2 pt-1 sm:flex-row">
+                <div className="flex flex-col flex-wrap gap-2 pt-1 sm:flex-row">
+                  {remainingBalanceCents > 0 && (
+                    <Button
+                      size="sm"
+                      onClick={handleChargeRemainingBalance}
+                      disabled={isChargingBalance || isSaving || isDeleting}
+                      className="sm:flex-1"
+                    >
+                      {isChargingBalance
+                        ? "Loading..."
+                        : `Create payment link for remaining balance (${formatCurrency(remainingBalanceCents, paymentCurrency)})`}
+                    </Button>
+                  )}
                   {stripeDashboardUrl && (
                     <Button variant="outline" size="sm" asChild className="sm:flex-1">
                       <a
@@ -540,8 +687,21 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-3 text-sm text-gray-500">
-                No payment has been recorded for this appointment yet.
+              <div className="space-y-3">
+                <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-3 text-sm text-gray-500">
+                  No payment has been recorded for this appointment yet.
+                </div>
+                {remainingBalanceCents > 0 && (
+                  <Button
+                    onClick={handleChargeRemainingBalance}
+                    disabled={isChargingBalance || isSaving || isDeleting}
+                    className="w-full"
+                  >
+                    {isChargingBalance
+                      ? "Charging balance..."
+                      : `Charge remaining (${formatCurrency(remainingBalanceCents, paymentCurrency)})`}
+                  </Button>
+                )}
               </div>
             )}
           </div>
