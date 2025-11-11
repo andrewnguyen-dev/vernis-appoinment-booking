@@ -32,6 +32,7 @@ export async function getSalonSettings() {
         id: salon.id,
         name: salon.name,
         slug: salon.slug,
+        capturePercentage: salon.capturePercentage,
         timeZone: salon.timeZone,
         capacity: salon.capacity,
         logoUrl: salon.logoUrl,
