@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
-import { enAU } from 'date-fns/locale';
+import { enAU } from "date-fns/locale";
 import { fromZonedTime } from "date-fns-tz";
 import type { PaymentStatus } from "@prisma/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -229,9 +229,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     .filter((entry) => entry.status === "PAID" && entry.kind !== "SETUP_ONLY")
     .reduce((sum, entry) => sum + entry.amountCents, 0);
   const remainingBalanceCents = Math.max(totalPrice - totalPaidCents, 0);
-  const depositPayment = paymentHistory.find(
-    (entry) => entry.kind === "BOOKING_DEPOSIT" && entry.status === "PAID",
-  );
+  const depositPayment = paymentHistory.find((entry) => entry.kind === "BOOKING_DEPOSIT" && entry.status === "PAID");
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -427,9 +425,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
       }
 
       if (result.requiresAction) {
-        toast.error(
-          result.error ?? "Card requires additional authentication. Send the client a payment link instead.",
-        );
+        toast.error(result.error ?? "Card requires additional authentication. Send the client a payment link instead.");
         return;
       }
 
@@ -558,7 +554,9 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                 <span className="text-muted-foreground">Paid so far</span>
                 <span className="font-medium">{formatCurrency(totalPaidCents, paymentCurrency)}</span>
               </div>
-              <div className={`mt-1 flex items-center justify-between ${remainingBalanceCents > 0 ? "text-destructive" : "text-muted-foreground"}`}>
+              <div
+                className={`mt-1 flex items-center justify-between ${remainingBalanceCents > 0 ? "text-destructive" : "text-muted-foreground"}`}
+              >
                 <span>Remaining</span>
                 <span className="font-medium">{formatCurrency(remainingBalanceCents, paymentCurrency)}</span>
               </div>
@@ -575,41 +573,30 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="font-medium">Payment link ready</p>
-                    <p className="mt-1 flex items-center gap-2 text-xs text-blue-800">
+                    <div className="mt-1 flex items-center text-xs text-blue-800">
                       <a
                         href={paymentLinkUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="truncate underline"
+                        className="truncate underline px-3 flex items-center h-9 bg-white border rounded-l"
                         title={paymentLinkUrl}
                       >
                         {paymentLinkUrl.slice(0, 48)}
                         {paymentLinkUrl.length > 48 ? "…" : ""}
                       </a>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className=""
-                        onClick={handleCopyPaymentLink}
-                      >
-                        <CopyIcon className="h-3.5 w-3.5" /> Copy
+                      <div className="px-3 h-9 flex items-center bg-gray-200 hover:bg-gray-200/70 transition-all duration-300 border-r border-y rounded-r cursor-pointer" onClick={handleCopyPaymentLink}>
+                        <CopyIcon className="h-3.5 w-3.5" />
                         <span className="sr-only">Copy payment link</span>
-                      </Button>
-                    </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 <div className="mt-3 flex flex-col items-center gap-2">
                   <div className="rounded-lg border border-white/60 bg-white p-3">
-                    <QRCode
-                      value={paymentLinkUrl}
-                      size={128}
-                      style={{ height: "auto", maxWidth: "100%", width: "128px" }}
-                    />
+                    <QRCode value={paymentLinkUrl} size={128} style={{ height: "auto", maxWidth: "100%", width: "128px" }} />
                   </div>
-                  <p className="text-center text-xs text-blue-800">
-                    Scan to pay the remaining balance.
-                  </p>
+                  <p className="text-center text-xs text-blue-800">Or scan to pay the remaining balance.</p>
                 </div>
               </div>
             ) : null}
@@ -632,7 +619,9 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Captured at</p>
-                    <p className="font-medium">{payment.capturedAt ? format(new Date(payment.capturedAt), "P p", {locale: enAU}) : "—"}</p>
+                    <p className="font-medium">
+                      {payment.capturedAt ? format(new Date(payment.capturedAt), "P p", { locale: enAU }) : "—"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Net to salon</p>
@@ -692,11 +681,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                   No payment has been recorded for this appointment yet.
                 </div>
                 {remainingBalanceCents > 0 && (
-                  <Button
-                    onClick={handleChargeRemainingBalance}
-                    disabled={isChargingBalance || isSaving || isDeleting}
-                    className="w-full"
-                  >
+                  <Button onClick={handleChargeRemainingBalance} disabled={isChargingBalance || isSaving || isDeleting} className="w-full">
                     {isChargingBalance
                       ? "Charging balance..."
                       : `Charge remaining (${formatCurrency(remainingBalanceCents, paymentCurrency)})`}
