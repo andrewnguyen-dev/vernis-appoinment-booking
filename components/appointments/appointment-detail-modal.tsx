@@ -548,9 +548,27 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                 </SelectContent>
               </Select>
             ) : (
-              <Badge className={statusBadgeClasses[formData.status]}>
-                {statusOptions.find((option) => option.value === formData.status)?.label ?? formData.status}
-              </Badge>
+              <>
+                <Badge className={statusBadgeClasses[formData.status]}>
+                  {statusOptions.find((option) => option.value === formData.status)?.label ?? formData.status}
+                </Badge>
+                {formData.status === "PENDING" && (
+                  <div className="flex mt-1 flex-row space-x-2">
+                    <Button size="sm" className="px-4" onClick={() => handleStatusUpdate("CONFIRMED")} disabled={isSaving || isRefunding}>
+                      {pendingStatusAction === "CONFIRMED" ? "Confirming..." : "Confirm"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="px-4"
+                      onClick={() => handleStatusUpdate("DECLINED")}
+                      disabled={isSaving || isRefunding}
+                    >
+                      {pendingStatusAction === "DECLINED" ? "Declining..." : "Decline"}
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -937,21 +955,6 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
               </div>
             ) : (
               <div className="flex flex-col space-y-2">
-                {formData.status === "PENDING" && (
-                  <div className="flex flex-col sm:flex-row sm:space-x-2 space-y-2 sm:space-y-0">
-                    <Button onClick={() => handleStatusUpdate("CONFIRMED")} disabled={isSaving || isRefunding} className="flex-1">
-                      {pendingStatusAction === "CONFIRMED" ? "Confirming..." : "Confirm Appointment"}
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => handleStatusUpdate("DECLINED")}
-                      disabled={isSaving || isRefunding}
-                      className="flex-1"
-                    >
-                      {pendingStatusAction === "DECLINED" ? "Declining..." : "Decline Appointment"}
-                    </Button>
-                  </div>
-                )}
                 <Button onClick={() => setIsEditing(true)} className="w-full" disabled={isRefunding}>
                   Edit Appointment
                 </Button>
