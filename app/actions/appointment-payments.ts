@@ -131,11 +131,11 @@ export async function chargeAppointmentBalance(data: { appointmentId: string }):
     const stripe = getStripeServerClient();
     const baseUrl = resolveStripePlatformBaseUrl();
     const successUrl = ensureAbsoluteStripeUrl(
-      `/${encodeURIComponent(appointment.salon.slug)}/book/checkout-success?session_id={CHECKOUT_SESSION_ID}&mode=balance`,
+      `/${encodeURIComponent(appointment.salon.slug)}/pay/balance/success?session_id={CHECKOUT_SESSION_ID}`,
       baseUrl,
     );
     const cancelUrl = ensureAbsoluteStripeUrl(
-      `/${encodeURIComponent(appointment.salon.slug)}/book?checkout=balance_cancelled`,
+      `/${encodeURIComponent(appointment.salon.slug)}/pay/balance/cancel`,
       baseUrl,
     );
 
