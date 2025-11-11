@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { enAU } from "date-fns/locale";
 import { fromZonedTime } from "date-fns-tz";
-import type { PaymentStatus } from "@prisma/client";
+import type { PaymentKind, PaymentStatus } from "@prisma/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -86,6 +86,14 @@ const paymentStatusStyles: Record<PaymentStatus, { label: string; className: str
   AUTHORIZED: { label: "Authorised", className: "bg-blue-100 text-blue-800" },
   REFUNDED: { label: "Refunded", className: "bg-amber-100 text-amber-800" },
   FAILED: { label: "Failed", className: "bg-red-100 text-red-800" },
+};
+
+const paymentKindLabels: Record<PaymentKind, string> = {
+  BOOKING_DEPOSIT: "Deposit",
+  REMAINING_BALANCE: "Remaining balance",
+  FULL_PAYMENT: "Full payment",
+  SETUP_ONLY: "Card on file",
+  OTHER: "Payment",
 };
 
 function formatCurrency(amountCents?: number | null, currency = "AUD") {
@@ -229,7 +237,15 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     .filter((entry) => entry.status === "PAID" && entry.kind !== "SETUP_ONLY")
     .reduce((sum, entry) => sum + entry.amountCents, 0);
   const remainingBalanceCents = Math.max(totalPrice - totalPaidCents, 0);
-  const depositPayment = paymentHistory.find((entry) => entry.kind === "BOOKING_DEPOSIT" && entry.status === "PAID");
+  const sortedPaymentHistory = [...paymentHistory].sort((a, b) => {
+    const aDate = a.capturedAt ?? a.createdAt ?? null;
+    const bDate = b.capturedAt ?? b.createdAt ?? null;
+
+    if (!aDate && !bDate) return 0;
+    if (!aDate) return 1;
+    if (!bDate) return -1;
+    return new Date(bDate).getTime() - new Date(aDate).getTime();
+  });
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -680,15 +696,54 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
                 <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-3 text-sm text-gray-500">
                   No payment has been recorded for this appointment yet.
                 </div>
-                {remainingBalanceCents > 0 && (
-                  <Button onClick={handleChargeRemainingBalance} disabled={isChargingBalance || isSaving || isDeleting} className="w-full">
-                    {isChargingBalance
-                      ? "Charging balance..."
-                      : `Charge remaining (${formatCurrency(remainingBalanceCents, paymentCurrency)})`}
-                  </Button>
-                )}
-              </div>
+            {remainingBalanceCents > 0 && (
+              <Button onClick={handleChargeRemainingBalance} disabled={isChargingBalance || isSaving || isDeleting} className="w-full">
+                {isChargingBalance
+                  ? "Charging balance..."
+                  : `Charge remaining (${formatCurrency(remainingBalanceCents, paymentCurrency)})`}
+              </Button>
             )}
+          </div>
+        )}
+
+        {sortedPaymentHistory.length > 0 ? (
+          <div className="space-y-2 rounded-lg border border-gray-200 bg-white p-3">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-sm">Payment history</span>
+              <span className="text-xs text-gray-500">
+                {sortedPaymentHistory.length} entr{sortedPaymentHistory.length === 1 ? "y" : "ies"}
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {sortedPaymentHistory.map((entry) => {
+                const badge = paymentStatusStyles[entry.status];
+                const timestamp = entry.capturedAt ?? entry.createdAt ?? null;
+                const formattedTimestamp = timestamp
+                  ? format(new Date(timestamp), "P p", { locale: enAU })
+                  : "Pending";
+
+                return (
+                  <div
+                    key={entry.id}
+                    className="rounded-md border border-gray-100 bg-gray-50 p-3 sm:flex sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                        {formatCurrency(entry.amountCents, entry.currency ?? paymentCurrency)}
+                        <span className="text-xs text-gray-500">• {paymentKindLabels[entry.kind]}</span>
+                      </div>
+                      <p className="text-xs text-gray-500">{formattedTimestamp}</p>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 sm:mt-0">
+                      <Badge className={badge.className}>{badge.label}</Badge>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
           </div>
 
           {/* Staff Assignment */}

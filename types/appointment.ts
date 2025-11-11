@@ -19,6 +19,7 @@ export interface AppointmentPaymentData {
   providerRef?: string | null
   capturedAt?: Date | null
   refundedAt?: Date | null
+  createdAt?: Date | null
 }
 
 export interface AppointmentData {
