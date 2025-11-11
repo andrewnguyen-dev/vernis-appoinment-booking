@@ -64,6 +64,7 @@ export async function chargeAppointmentBalance(data: { appointmentId: string }):
             stripeAccountId: true,
             platformFeePercent: true,
             platformFeeMinCents: true,
+            timeZone: true,
           },
         },
         client: {
