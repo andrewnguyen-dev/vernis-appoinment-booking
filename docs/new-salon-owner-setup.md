@@ -93,7 +93,7 @@ SELECT
   s.slug as salon_slug,
   s.capacity,
   s."hasCompletedOnboarding",
-  m.role,
+  m.role
 FROM "user" u
 JOIN "membership" m ON u.id = m."userId"
 JOIN "salon" s ON m."salonId" = s.id
