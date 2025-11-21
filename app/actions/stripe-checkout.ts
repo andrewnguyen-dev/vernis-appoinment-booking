@@ -14,6 +14,7 @@ import { isAccountReadyForPayments } from "@/lib/services/stripe-connect-service
 import { isTimeSlotAvailable } from "@/lib/availability";
 import { createAppointmentRecord } from "@/app/actions/appointment";
 import { handleSuccessfulPayment } from "@/lib/services/stripe-payment-service";
+import { sendBookingConfirmationEmails } from "@/lib/services/booking-notification-service";
 
 export interface CreateBookingSessionResult {
   success: boolean;
@@ -374,6 +375,7 @@ export async function finalizeBookingCheckoutSession(
       where: { slug: salonSlug },
       select: {
         id: true,
+        name: true,
         slug: true,
         stripeAccountId: true,
         timeZone: true,
@@ -605,6 +607,32 @@ export async function finalizeBookingCheckoutSession(
         await syncClientBillingDetails(appointmentResult.client.id, customerId, paymentMethodId);
       }
 
+      await sendBookingConfirmationEmails({
+        appointmentId: appointmentResult.appointment.id,
+        startsAt: appointmentResult.appointment.startsAt,
+        salon: {
+          id: salon.id,
+          name: salon.name,
+          slug: salon.slug,
+          timeZone: salon.timeZone,
+        },
+        client: {
+          firstName: appointmentResult.client.firstName,
+          lastName: appointmentResult.client.lastName,
+          email: appointmentResult.client.email,
+          phone: appointmentResult.client.phone,
+        },
+        services: appointmentResult.services.map((service) => ({
+          name: service.name,
+          durationMinutes: service.durationMinutes,
+          priceCents: service.priceCents,
+        })),
+        totalPriceCents: metadata.totalPrice,
+        captureAmountCents: metadata.captureAmountCents,
+        remainingBalanceCents: metadata.remainingBalanceCents,
+        notes: appointmentResult.appointment.notes,
+      });
+
       const clientName = `${appointmentResult.client.firstName} ${appointmentResult.client.lastName ?? ""}`.trim();
 
       return {
@@ -658,6 +686,32 @@ export async function finalizeBookingCheckoutSession(
         stripeSessionId: session.id,
         connectedAccountId: salon.stripeAccountId,
       },
+    });
+
+    await sendBookingConfirmationEmails({
+      appointmentId: appointmentResult.appointment.id,
+      startsAt: appointmentResult.appointment.startsAt,
+      salon: {
+        id: salon.id,
+        name: salon.name,
+        slug: salon.slug,
+        timeZone: salon.timeZone,
+      },
+      client: {
+        firstName: appointmentResult.client.firstName,
+        lastName: appointmentResult.client.lastName,
+        email: appointmentResult.client.email,
+        phone: appointmentResult.client.phone,
+      },
+      services: appointmentResult.services.map((service) => ({
+        name: service.name,
+        durationMinutes: service.durationMinutes,
+        priceCents: service.priceCents,
+      })),
+      totalPriceCents: metadata.totalPrice,
+      captureAmountCents: metadata.captureAmountCents,
+      remainingBalanceCents: metadata.remainingBalanceCents,
+      notes: appointmentResult.appointment.notes,
     });
 
     const clientName = `${appointmentResult.client.firstName} ${appointmentResult.client.lastName ?? ""}`.trim();
