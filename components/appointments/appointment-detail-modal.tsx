@@ -32,6 +32,7 @@ import {
   updateAppointmentTime,
   getSalonStaff,
   refundAppointmentPayment,
+  notifyAppointmentClient,
 } from "@/app/actions/appointment-management";
 import { chargeAppointmentBalance } from "@/app/actions/appointment-payments";
 import { toast } from "react-hot-toast";
@@ -173,6 +174,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
   const [loadingStaff, setLoadingStaff] = useState(false);
   const [formData, setFormData] = useState<AppointmentFormState>(() => ({ ...emptyFormState }));
   const [initialFormData, setInitialFormData] = useState<AppointmentFormState>(() => ({ ...emptyFormState }));
+  const [isSendingClientUpdate, setIsSendingClientUpdate] = useState(false);
 
   React.useEffect(() => {
     if (appointment) {
@@ -247,8 +249,9 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
     return new Date(bDate).getTime() - new Date(aDate).getTime();
   });
 
-  const handleSave = async () => {
+  const handleSave = async (notifyClient = false) => {
     setIsSaving(true);
+    setIsSendingClientUpdate(notifyClient);
     try {
       // Check if time has changed
       const originalDate = format(appointment.startsAtLocal, "yyyy-MM-dd");
@@ -292,7 +295,16 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
       });
 
       if (result.success) {
-        toast.success("Appointment updated successfully");
+        if (notifyClient) {
+          const notifyResult = await notifyAppointmentClient({ appointmentId: appointment.id });
+          if (notifyResult.success) {
+            toast.success("Changes saved and sent to the client");
+          } else {
+            toast.error(notifyResult.error || "Changes saved, but we couldn't email the client");
+          }
+        } else {
+          toast.success("Appointment updated successfully");
+        }
         setInitialFormData({ ...formData });
         setIsEditing(false);
         onSave?.(); // Refresh the appointments list
@@ -304,6 +316,7 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
       toast.error("Failed to update appointment");
     } finally {
       setIsSaving(false);
+      setIsSendingClientUpdate(false);
     }
   };
 
@@ -945,13 +958,23 @@ const AppointmentDetailModal: React.FC<AppointmentDetailModalProps> = ({
           {/* Action Buttons */}
           <div className="flex flex-col space-y-2 pt-4">
             {isEditing ? (
-              <div className="flex space-x-2">
-                <Button onClick={handleSave} disabled={isSaving || isRefunding} className="flex-1">
-                  {isSaving ? "Saving..." : "Save Changes"}
+              <div className="flex flex-col space-y-2">
+                <Button onClick={() => handleSave(true)} disabled={isSaving || isRefunding} className="w-full">
+                  {isSaving && isSendingClientUpdate ? "Saving & Emailing..." : "Save & Email Client"}
                 </Button>
-                <Button variant="outline" onClick={handleCancel} disabled={isSaving || isRefunding}>
-                  Cancel
-                </Button>
+                <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleSave(false)}
+                    disabled={isSaving || isRefunding}
+                    className="flex-1"
+                  >
+                    {isSaving && !isSendingClientUpdate ? "Saving..." : "Save Without Email"}
+                  </Button>
+                  <Button variant="outline" onClick={handleCancel} disabled={isSaving || isRefunding} className="flex-1">
+                    Cancel
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="flex flex-col space-y-2">

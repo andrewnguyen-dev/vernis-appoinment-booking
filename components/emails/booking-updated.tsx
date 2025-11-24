@@ -1,6 +1,7 @@
 import * as React from "react";
 import {
   Body,
+  Button,
   Container,
   Head,
   Heading,
@@ -18,65 +19,64 @@ interface ServiceSummary {
   price: string;
 }
 
-interface BookingConfirmationSalonEmailProps {
+interface BookingUpdatedEmailProps {
   salonName: string;
   clientName: string;
-  clientEmail?: string | null;
-  clientPhone?: string | null;
   appointmentDate: string;
   appointmentTime: string;
   timezoneLabel: string;
+  changeSummary: string;
   services: ServiceSummary[];
   totalPrice: string;
-  amountPaid: string;
+  amountPaid?: string | null;
   amountDue?: string | null;
   notes?: string | null;
   bookingReference: string;
+  viewDetailsUrl?: string;
 }
 
-const BookingConfirmationSalonEmail = (props: BookingConfirmationSalonEmailProps) => {
+const BookingUpdatedEmail = (props: BookingUpdatedEmailProps) => {
   const {
     salonName,
     clientName,
-    clientEmail,
-    clientPhone,
     appointmentDate,
     appointmentTime,
     timezoneLabel,
+    changeSummary,
     services,
     totalPrice,
     amountPaid,
     amountDue,
     notes,
     bookingReference,
+    viewDetailsUrl,
   } = props;
 
   return (
     <Html lang="en" dir="ltr">
       <Tailwind>
         <Head />
-        <Preview>{`New booking from ${clientName} on ${appointmentDate}`}</Preview>
+        <Preview>Your booking has been updated at {salonName}</Preview>
         <Body className="bg-gray-100 font-sans py-[40px]">
-          <Container className="bg-white rounded-[8px] shadow-sm max-w-[600px] mx-auto p-[40px]">
+          <Container className="bg-white rounded-[10px] shadow-sm max-w-[600px] mx-auto p-[40px]">
             <Section className="text-center mb-[32px]">
               <Heading className="text-[28px] font-bold text-gray-900 m-0 mb-[8px]">
-                New Booking Received
+                Your booking has been updated
               </Heading>
-              <Text className="text-[16px] text-gray-600 m-0">
-                {salonName} has a new appointment to review
-              </Text>
             </Section>
 
             <Section className="mb-[24px]">
+              <Text className="text-[16px] text-gray-700 leading-[24px] m-0 mb-[8px]">
+                Hi {clientName || "there"},
+              </Text>
               <Text className="text-[16px] text-gray-700 leading-[24px] m-0">
-                Client <strong>{clientName}</strong> just secured a booking. Here are the
-                full details so your team can prepare.
+                {changeSummary}
               </Text>
             </Section>
 
             <Section className="bg-gray-50 p-[24px] rounded-[12px] mb-[32px]">
               <Text className="text-[14px] font-semibold text-gray-900 uppercase tracking-wide m-0 mb-[12px]">
-                Appointment Details
+                Updated appointment
               </Text>
               <Text className="text-[16px] text-gray-900 font-semibold m-0">
                 {appointmentDate}
@@ -85,9 +85,7 @@ const BookingConfirmationSalonEmail = (props: BookingConfirmationSalonEmailProps
                 {appointmentTime} <span className="text-gray-500 font-normal">({timezoneLabel})</span>
               </Text>
 
-              <Text className="text-[14px] text-gray-600 m-0 mb-[12px]">
-                Services
-              </Text>
+              <Text className="text-[14px] text-gray-600 m-0 mb-[10px]">Services</Text>
               {services.map((service, index) => (
                 <div key={`${service.name}-${index}`} className="flex justify-between text-[14px] text-gray-700 mb-[8px]">
                   <span className="font-medium text-gray-900 mr-2">{service.name}</span>
@@ -99,56 +97,55 @@ const BookingConfirmationSalonEmail = (props: BookingConfirmationSalonEmailProps
 
               <Hr className="border-gray-200 my-[16px]" />
 
-              <div className="flex justify-between text-[14px] text-gray-700 mb-[4px]">
-                <span className="mr-2">Captured today</span>
-                <span className="font-semibold text-gray-900">{amountPaid}</span>
+              <div className="flex justify-between text-[14px] text-gray-700">
+                <span className="mr-2">Total value</span>
+                <span className="font-semibold text-gray-900">{totalPrice}</span>
               </div>
-              {amountDue ? (
-                <div className="flex justify-between text-[14px] text-gray-700">
-                  <span className="mr-2">Remaining balance</span>
-                  <span className="font-semibold text-gray-900">{amountDue}</span>
+
+              {amountPaid ? (
+                <div className="flex justify-between text-[14px] text-gray-700 mt-[4px]">
+                  <span className="mr-2">Paid so far</span>
+                  <span className="font-semibold text-gray-900">{amountPaid}</span>
                 </div>
               ) : null}
 
-              <div className="flex justify-between text-[15px] font-semibold text-gray-900 mt-[12px]">
-                <span className="mr-2">Total value</span>
-                <span>{totalPrice}</span>
-              </div>
-            </Section>
-
-            <Section className="mb-[24px]">
-              <Text className="text-[14px] text-gray-900 font-semibold m-0 mb-[8px]">
-                Client Contact
-              </Text>
-              {clientEmail ? (
-                <Text className="text-[14px] text-gray-700 leading-[22px] m-0">
-                  Email: {clientEmail}
-                </Text>
-              ) : null}
-              {clientPhone ? (
-                <Text className="text-[14px] text-gray-700 leading-[22px] m-0">
-                  Phone: {clientPhone}
-                </Text>
-              ) : null}
-              {!clientEmail && !clientPhone ? (
-                <Text className="text-[14px] text-gray-700 leading-[22px] m-0">
-                  The client did not share contact details.
-                </Text>
+              {amountDue ? (
+                <div className="flex justify-between text-[14px] text-gray-700 mt-[4px]">
+                  <span className="mr-2">Balance remaining</span>
+                  <span className="font-semibold text-gray-900">{amountDue}</span>
+                </div>
               ) : null}
             </Section>
 
             {notes ? (
               <Section className="mb-[24px]">
                 <Text className="text-[14px] text-gray-900 font-semibold m-0 mb-[8px]">
-                  Client Notes
+                  Notes from {salonName}
                 </Text>
                 <Text className="text-[14px] text-gray-700 leading-[22px] m-0">{notes}</Text>
               </Section>
             ) : null}
 
-            <Section>
+            {viewDetailsUrl ? (
+              <Section className="text-center mb-[24px]">
+                <Button
+                  href={viewDetailsUrl}
+                  className="bg-blue-600 text-white px-[32px] py-[16px] rounded-[8px] text-[16px] font-semibold no-underline inline-block"
+                >
+                  View Updated Booking
+                </Button>
+              </Section>
+            ) : null}
+
+            <Section className="mb-[16px]">
               <Text className="text-[14px] text-gray-600 leading-[22px] m-0">
                 Booking reference: <span className="font-mono text-[13px]">{bookingReference}</span>
+              </Text>
+            </Section>
+
+            <Section className="border-t border-gray-200 pt-[24px]">
+              <Text className="text-[12px] text-gray-500 leading-[18px] m-0">
+                You are receiving this email because your {salonName} booking was updated.
               </Text>
             </Section>
           </Container>
@@ -158,4 +155,4 @@ const BookingConfirmationSalonEmail = (props: BookingConfirmationSalonEmailProps
   );
 };
 
-export default BookingConfirmationSalonEmail;
+export default BookingUpdatedEmail;

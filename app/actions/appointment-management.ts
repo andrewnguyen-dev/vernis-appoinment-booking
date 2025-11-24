@@ -7,6 +7,8 @@ import { getUserSalon } from "@/lib/user-utils"
 import { isTimeSlotAvailable } from "@/lib/availability"
 import { revalidatePath } from "next/cache"
 import { refundAppointment as refundStripeAppointment } from "@/lib/services/stripe-payment-service"
+import { sendBookingUpdatedEmail } from "@/lib/services/booking-notification-service"
+import { PaymentKind, PaymentStatus } from "@prisma/client"
 
 // Validation schemas
 const UpdateAppointmentSchema = z.object({
@@ -36,8 +38,19 @@ const RefundAppointmentSchema = z.object({
   appointmentId: z.string().cuid(),
 })
 
+const NotifyAppointmentSchema = z.object({
+  appointmentId: z.string().cuid(),
+  message: z.string().optional(),
+})
+
 export type UpdateAppointmentData = z.infer<typeof UpdateAppointmentSchema>
 export type UpdateAppointmentTimeData = z.infer<typeof UpdateAppointmentTimeSchema>
+
+function sumPaidAmounts(payments: Array<{ amountCents: number; status: PaymentStatus; kind: PaymentKind }>): number {
+  return payments
+    .filter((payment) => payment.status === PaymentStatus.PAID && payment.kind !== PaymentKind.SETUP_ONLY)
+    .reduce((sum, payment) => sum + payment.amountCents, 0)
+}
 
 // Update appointment details (status, notes, client info)
 export async function updateAppointment(data: UpdateAppointmentData) {
@@ -329,6 +342,127 @@ export async function updateAppointmentTime(data: UpdateAppointmentTimeData) {
     return {
       success: false,
       error: "Failed to update appointment time"
+    }
+  }
+}
+
+export async function notifyAppointmentClient(data: { appointmentId: string; message?: string }) {
+  try {
+    const { appointmentId, message } = NotifyAppointmentSchema.parse(data)
+
+    const session = await requireOwnerAuth()
+    const salon = await getUserSalon(session.user.id, 'OWNER')
+
+    if (!salon) {
+      return {
+        success: false,
+        error: "No salon found for this user",
+      }
+    }
+
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: {
+        salon: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            timeZone: true,
+          },
+        },
+        client: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+          },
+        },
+        items: {
+          select: {
+            id: true,
+            serviceName: true,
+            durationMinutes: true,
+            priceCents: true,
+            sortOrder: true,
+          },
+          orderBy: {
+            sortOrder: 'asc',
+          },
+        },
+        payments: {
+          select: {
+            amountCents: true,
+            status: true,
+            kind: true,
+          },
+        },
+      },
+    })
+
+    if (!appointment || appointment.salonId !== salon.id) {
+      return {
+        success: false,
+        error: "Appointment not found for this salon",
+      }
+    }
+
+    if (!appointment.client.email) {
+      return {
+        success: false,
+        error: "Client email is missing. Update the client details first.",
+      }
+    }
+
+    const services = appointment.items.map((item) => ({
+      name: item.serviceName,
+      durationMinutes: item.durationMinutes,
+      priceCents: item.priceCents,
+    }))
+
+    const totalPriceCents = services.reduce((sum, service) => sum + service.priceCents, 0)
+    const totalPaidCents = sumPaidAmounts(appointment.payments ?? [])
+    const captureAmountCents = Math.min(totalPaidCents, totalPriceCents)
+    const remainingBalanceCents = Math.max(totalPriceCents - totalPaidCents, 0)
+
+    const changeSummary = message?.trim() || `Your booking with ${appointment.salon.name} was updated by the salon team. Please review the latest details.`
+
+    await sendBookingUpdatedEmail({
+      appointmentId: appointment.id,
+      startsAt: appointment.startsAt,
+      salon: appointment.salon,
+      client: {
+        firstName: appointment.client.firstName,
+        lastName: appointment.client.lastName,
+        email: appointment.client.email,
+      },
+      services,
+      totalPriceCents,
+      captureAmountCents,
+      remainingBalanceCents,
+      notes: appointment.notes,
+      changeSummary,
+    })
+
+    return {
+      success: true,
+    }
+  } catch (error) {
+    console.error('Error sending appointment notification:', error)
+
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: "Invalid data: " + error.issues.map((issue) => issue.message).join(', '),
+      }
+    }
+
+    const message = error instanceof Error ? error.message : 'Failed to send appointment update email'
+
+    return {
+      success: false,
+      error: message,
     }
   }
 }

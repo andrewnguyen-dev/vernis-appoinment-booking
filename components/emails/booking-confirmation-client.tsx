@@ -48,14 +48,14 @@ const BookingConfirmationClientEmail = (props: BookingConfirmationClientEmailPro
         <Body className="bg-gray-100 font-sans py-[40px]">
           <Container className="bg-white rounded-[8px] shadow-sm max-w-[600px] mx-auto p-[40px]">
             <Section className="text-center mb-[32px]">
-              <Heading className="text-[28px] font-bold text-gray-900 m-0 mb-[8px]">Booking Confirmed</Heading>
+              <Heading className="text-[28px] font-bold text-gray-900 m-0 mb-[8px]">Booking Placed</Heading>
               <Text className="text-[16px] text-gray-600 m-0">Thanks for booking with {salonName}</Text>
             </Section>
 
             <Section className="mb-[24px]">
               <Text className="text-[16px] text-gray-700 leading-[24px] m-0 mb-[16px]">Hi {clientName || "there"},</Text>
               <Text className="text-[16px] text-gray-700 leading-[24px] m-0">
-                Your appointment has been locked in. All of the details are below so you can easily review your booking anytime.
+                Your appointment has been placed. All of the details are below so you can easily review your booking anytime.
               </Text>
             </Section>
 
@@ -63,7 +63,7 @@ const BookingConfirmationClientEmail = (props: BookingConfirmationClientEmailPro
               <Text className="text-[14px] font-semibold text-gray-900 uppercase tracking-wide m-0 mb-[12px]">Appointment Details</Text>
               <Text className="text-[16px] text-gray-900 font-semibold m-0">{appointmentDate}</Text>
               <Text className="text-[16px] text-gray-900 font-semibold m-0 mb-[16px]">
-                {appointmentTime} ({timezoneLabel})
+                {appointmentTime} <span className="text-gray-500 font-normal">({timezoneLabel})</span>
               </Text>
 
               <Text className="text-[14px] text-gray-600 m-0 mb-[12px]">Services</Text>
@@ -92,7 +92,7 @@ const BookingConfirmationClientEmail = (props: BookingConfirmationClientEmailPro
               ) : null}
 
               <div className="flex gap-2 justify-between text-[15px] font-semibold text-gray-900 mt-[12px]">
-                <span>Total value</span>
+                <span className="mr-2">Total value</span>
                 <span>{totalPrice}</span>
               </div>
             </Section>
